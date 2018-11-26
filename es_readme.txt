@@ -75,3 +75,7 @@ Gå til din kanal på YouTube og check at stream er ok. Optag evt. lyd, hvis du 
 
 
 
+
+
+Mon Nov 26 16:40:19 CET 2018
+tps - now on github
