@@ -24,7 +24,7 @@ sudo apt-get update -qq && sudo apt-get -y install \
   texinfo \
   wget \
   zlib1g-dev
-  
+
 mkdir -p ~/ffmpeg_sources ~/bin
 
 sudo apt-get install yasm
@@ -40,9 +40,14 @@ sudo apt install libzmq3-dev
 # tps nov 2018. I get this error when I compile ffmpeg: "ERROR: libzmq not found using pkg-config"
 # Edit and comment out line Libs.private: -lstdc++  -lsodium -lpgm -lpthread -lm -lnorm
 # in file /usr/lib/x86_64-linux-gnu/pkgconfig/libzmq.pc
-# If I run `pkg-config --debug libzmq` I get a hint that line is invalid! 
+# If I run `pkg-config --debug libzmq` I get a hint that this line is invalid!
+# `pkg-config --debug libzmq`:
+# ...
+# Unknown keyword 'Libs.private' in '/usr/lib/x86_64-linux-gnu/pkgconfig/libzmq.pc'
+# ...
 
 cd ~/ffmpeg_sources && \
+# Use next two lines if you want to get ffmpeg code. For now, now need to get code!
 # wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
 # tar xjvf ffmpeg-snapshot.tar.bz2 && \
 cd ffmpeg && \

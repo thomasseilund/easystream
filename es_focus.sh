@@ -1,8 +1,7 @@
 #!/bin/bash
 
 function help {
-  echo "Focus camera"
-  echo "Control audio record in call es_stream_to_upd -t logitech|hdpvr"
+  echo "Focus camera. First, capture camera to display with \`ffplay -i /dev/video2\` If needed, adjust video input device"
   echo "Call $0 -v 1|2|3.. -h"
   echo "-v video input device. Use v4l2-ctl --list-devices"
   echo "-h show this help text"

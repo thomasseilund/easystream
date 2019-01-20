@@ -1,6 +1,6 @@
 mkdir newdir
 cd newdir
-PATH=$PATH:~/data/data/git/easystream
+PATH=$PATH:~/data/data/git/github/easystream
 es_terminal_setup.sh -n 4
 
 
@@ -21,7 +21,7 @@ Antag at kamera er på /dev/video2
 v4l2-ctl -d 2 --set-ctrl=focus_auto=0
 
 # sæt fokus manuelt. Prøv med forskellige værdier, fx. 5,10, 30, 50
-v4l2-ctl -d 2 --set-ctrl=focus_absolute=45 
+v4l2-ctl -d 2 --set-ctrl=focus_absolute=45
 
 
 
@@ -31,6 +31,8 @@ Split terminal horizontalt et par gange, så man har fire terminaler i samme vin
 
 Stop programmer med Ctrl + C
 
+Start qps process monitor, og læg program i bundlinie, så man kan følge med i CPU-belastning
+
 Terminal 1:
 
 Test kamera, fx /dev/video2 Størrelse på video sættes senere
@@ -39,7 +41,7 @@ ffplay -i /dev/video2
 
 Terminal 2:
 
-Fokuser. Kun nødvendigt når der ikke er fokusering på kampera. Det er der typisk ikke på webcams
+Fokuser. Kun nødvendigt når der ikke er fokusering på kamera. Det er der typisk ikke på webcams
 
 es_fokus -v 2
 
@@ -53,25 +55,29 @@ Terminal 2:
 
 Gør klar til at stoppe/starte lydoptagelse. Stop evt. optagelse af lyd til kamp starter
 
-es_on_off.sh 
+es_on_off.sh
 
 Terminal 3:
 
-Se live optagelse. Forvent lavere kvalitet. Streaming-kvalitet er højere
+Se live optagelse. Forvent lavere kvalitet. Streaming-kvalitet er højere. Optagelse må max være et par sek. bagud
 
 es_play_stream_from_udp.sh -n 1
 
 Terminal 4:
 
-Live stream til YouTube. X1 is YouTube user. Y2 is YouTube Stream name/key. Speed skal komme op på 1.
-Gå til din kanal på YouTube og derefter https://www.youtube.com/features
-Vælg "LIVE STREAMING" og find det "Stream name/key"
+Live stream til YouTube. X1 is YouTube user. X2 is YouTube Stream name/key. Speed skal komme op på 1.
+Log på din kanal på YouTube og gå derefter til https://www.youtube.com/features
+Vælg "LIVE STREAMING" og find dit "Stream name/key". Tryk på "Reveal" for at se værdi.
 
 es_stream_to_youtube.sh  -n 1 -U X1 -Y X2
 
 Når du har udført kommando ovenfor, så streames til YouTube.
 
-Gå til din kanal på YouTube og check at stream er ok. Optag evt. lyd, hvis du tidligere slog lyd fra
+Gå til din kanal på YouTube og check at stream er ok. Optag evt. lyd, hvis du tidligere slog lyd fra.
+
+På YouTube er optagelsen 30s - 60s bagud.
+
+Hvis du ikke kommer op på speed 1, så kan det være fordi CPU er overbelastet. Prøv at benytte browser til at styre YouTube streaming fra en anden host, så 'encoder'-host ikke spilder kræfter på en browser-session.
 
 
 
