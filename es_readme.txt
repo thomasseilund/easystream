@@ -1,6 +1,6 @@
 mkdir newdir
 cd newdir
-PATH=$PATH:~/data/data/git/github/easystream
+PATH=$PATH:~/github/easystream
 es_terminal_setup.sh -n 4
 
 
@@ -45,7 +45,7 @@ Fokuser. Kun nødvendigt når der ikke er fokusering på kamera. Det er der typi
 
 es_fokus -v 2
 
-Terminal 1:
+Terminal 1:161a32935cafa3958f593d4fa36dc48ecb39fcc4
 
 Optag - speed skal komme op på 1
 

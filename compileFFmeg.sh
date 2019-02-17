@@ -48,8 +48,8 @@ sudo apt install libzmq3-dev
 
 cd ~/ffmpeg_sources && \
 # Use next two lines if you want to get ffmpeg code. For now, now need to get code!
-# wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
-# tar xjvf ffmpeg-snapshot.tar.bz2 && \
+wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
+tar xjvf ffmpeg-snapshot.tar.bz2 && \
 cd ffmpeg && \
 PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure \
   --prefix="$HOME/ffmpeg_build" \
