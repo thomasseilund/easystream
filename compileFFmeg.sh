@@ -4,7 +4,7 @@
 # Compile FFmpeg for Ubuntu, Debian, or Mint
 # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
 
-sudo apt-get update -qq && sudo apt-get -y install \
+sudo apt-get update -qq && sudo apt -y install \
   autoconf \
   automake \
   build-essential \
@@ -27,15 +27,15 @@ sudo apt-get update -qq && sudo apt-get -y install \
 
 mkdir -p ~/ffmpeg_sources ~/bin
 
-sudo apt-get install yasm
+sudo apt -y install yasm
 
-sudo apt-get install libx264-dev
+sudo apt -y install libx264-dev
 
-sudo apt-get install libfdk-aac-dev
+sudo apt -y install libfdk-aac-dev
 
-sudo apt-get install libmp3lame-dev
+sudo apt -y install libmp3lame-dev
 
-sudo apt install libzmq3-dev
+sudo apt -y install libzmq3-dev
 
 # tps nov 2018. I get this error when I compile ffmpeg: "ERROR: libzmq not found using pkg-config"
 # Edit and comment out line Libs.private: -lstdc++  -lsodium -lpgm -lpthread -lm -lnorm
@@ -73,6 +73,6 @@ cp tools/zmqsend $HOME/bin
 make install && \
 hash -r
 
-sudo apt install v4l-utils
+sudo apt -y install v4l-utils
 # Suspend on close lid
-sudo apt install pm-utils
+sudo apt -y install pm-utils
