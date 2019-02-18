@@ -3,7 +3,8 @@
 function help {
   echo "Build an image file that looks like a scoreboard"
   echo "Call $0 -a hometeam -b awayteam -1 homelogo -2 awaylogo -t gametext -h"
-  echo "Use Image Magick to get logo right size, ie. convert origlogo.png -geometry 32x logo32.png
+  echo "Use Image Magick to get logo right size, ie. convert origlogo.png -geometry 32x logo32.png"
+  echo "-V verbose"
   exit 0
 }
 
@@ -19,7 +20,7 @@ FONTFILETEXT=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf
 FONTCOLOR=red
 
 # Get command line options
-while getopts ":a:b:t:1:2:s:h" opt ; do
+while getopts ":a:b:t:1:2:s:hV" opt ; do
 	case $opt in
 		a)
 			TEAMHOME=$OPTARG
@@ -39,6 +40,9 @@ while getopts ":a:b:t:1:2:s:h" opt ; do
 		h)
 			help
 			;;
+    V)
+    	set -x
+    	;;
 		\?)
 			echo "Invalid option: -$OPTARG" >&2
 			help
