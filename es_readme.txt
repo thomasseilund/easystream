@@ -81,7 +81,15 @@ Hvis du ikke kommer op på speed 1, så kan det være fordi CPU er overbelastet.
 
 
 
+Simulate overlay:
+ffmpeg -re -f lavfi -i testsrc=size=hd720 -f mjpeg udp://localhost:9999
 
 
-Mon Nov 26 16:40:19 CET 2018
-tps - now on github
+
+Skab video med bestemt antal frames:
+ffmpeg -f lavfi -i testsrc=size=hd720 -frames:v 25 -f mjpeg 25.mjpeg
+ffmpeg -f lavfi -i color=c=green:size=hd720 -frames:v 1 -f mjpeg 1.mjpeg
+
+
+Tæl antal frames i video:
+ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 1.mjpeg

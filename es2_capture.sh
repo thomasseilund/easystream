@@ -17,7 +17,8 @@ function help {
 	echo "-h help - this text"
 	echo "-R ffmpeg report"
 	echo "-N no output file. Default is ./stream/timestamped-file.mkv"
-	echo "-S include scoreboard"
+	echo "-S overlay scoreboard"
+	echo "-P overlay playback"
 	exit 0
 }
 
@@ -45,7 +46,7 @@ STDFILTER="setpts=PTS-STARTPTS,fps=25"
 # Handle command line arguments. See http://wiki.bash-hackers.org/howto/getopts_tutorial
 #
 
-while getopts "v:s:r:a:n:VhRXNS" opt; do
+while getopts "v:s:r:a:n:VhRXNSP" opt; do
 case $opt in
 	v)
 	VDEVICE=$OPTARG
@@ -64,6 +65,9 @@ case $opt in
 	;;
 	S)
 	SCOREBOARD=Y
+	;;
+	P)
+	PLAYBACK=Y
 	;;
 	V)
 	set -x
@@ -122,7 +126,7 @@ fi
 #
 
 # Main camera, video input 0
-VIDEO_IN="-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -i /dev/video${VDEVICE}"
+VIDEO_IN="-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${SIZE} -i /dev/video${VDEVICE}"
 
 # Main audio
 AUDIO_IN="-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"
@@ -131,8 +135,12 @@ AUDIO_IN="-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"
 if [ "$SCOREBOARD" == "Y" ] && [ "$PLAYBACK" == "Y" ]
 then
 	echo Scoreboard and playback
-	OVERLAYS_IN="-re -loop 1 -i scoreboard.png"
-	FILTERCOMPLEX_OVERLAYS=";[1:video]${STDFILTER}[scoreboard]"
+	OVERLAYS_IN="-re -loop 1 -i scoreboard.png -f mjpeg -i udp://localhost:9999"
+	FILTERCOMPLEX_OVERLAYS="\
+;[2:video]${STDFILTER}[scoreboard]\
+;[3:video]${STDFILTER}[playback]\
+;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores0]\
+;[videores0][playback]overlay[videores]"
 elif [ "$SCOREBOARD" == "Y" ]
 then
 	echo Scoreboard
