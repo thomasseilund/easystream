@@ -5,17 +5,18 @@
 #
 
 function help {
-	echo "Capture and show stream based on UVC camera. Optionally add scoreboard and playback"
+	echo "Capture and show stream based on UVC camera"
+	echo "Stream is saved as a time stamped file in subdirectory ./stream"
+	echo "Optionally add scoreboard and playback"
 	echo "Call $(basename $0) -v 1|2|3... -s hd480|hd720|hd1080|WxH -r 10|24|25|30... -a 0|1|0:0... -b -h -V -R"
-	echo "Ie. \`es2_capture.sh -v 2 -s hd720 -r 24 -a 2\`"
+	echo "Ie. \`es2_capture.sh -v 2 -s hd720 -r 24 -a 1\`"
 	echo "-v video input device number. Use es_devices.sh"
 	echo "-s video size. Use es_devices.sh"
 	echo "-r video rate. Use es_devices.sh"
 	echo "-a audio input card and optionally subdevice. Use es_devices.sh"
-	echo "-X show stream"
 	echo "-V verbose"
 	echo "-h help - this text"
-	echo "-R ffmpeg report"
+	echo "-R ffmpeg report. See report for overlay numbers"
 	echo "-N no output file. Default is ./stream/timestamped-file.mkv"
 	echo "-S overlay scoreboard"
 	echo "-P overlay playback"
@@ -26,11 +27,12 @@ function help {
 # Constants
 #
 
-VIDEOOUTPUTCODEC="-c:v mjpeg -q:v 1 -r 25"
+PIX_FMT=yuvj420p
+VIDEOOUTPUTCODEC="-pix_fmt ${PIX_FMT} -c:v mjpeg -q:v 1 -r 25"
 AUDIOOUTPUTCODEC="-c:a aac -b:a 128k -ar 44100 -strict -2"
-THREAD_QUEUE_SIZE="-thread_queue_size 32"
+THREAD_QUEUE_SIZE="-thread_queue_size 64"
 STDFILTER="setpts=PTS-STARTPTS,fps=25"
-
+IP=`hostname  -I | cut -f1 -d' '`
 #
 # Variables
 #
@@ -46,7 +48,7 @@ STDFILTER="setpts=PTS-STARTPTS,fps=25"
 # Handle command line arguments. See http://wiki.bash-hackers.org/howto/getopts_tutorial
 #
 
-while getopts "v:s:r:a:n:VhRXNSP" opt; do
+while getopts "v:s:r:a:n:VhRNSP" opt; do
 case $opt in
 	v)
 	VDEVICE=$OPTARG
@@ -122,6 +124,20 @@ fi
 
 
 #
+# If playback then create filler images
+#
+
+if [ "$PLAYBACK" == "Y" ]
+then
+	if [ ! -d ./plabackNo ]
+	then
+		mkdir ./playbackNo
+	fi
+	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 1 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/1.mjpeg
+	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 25 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/25.mjpeg
+fi
+
+#
 #	Input
 #
 
@@ -135,16 +151,16 @@ AUDIO_IN="-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"
 if [ "$SCOREBOARD" == "Y" ] && [ "$PLAYBACK" == "Y" ]
 then
 	echo Scoreboard and playback
-	OVERLAYS_IN="-re -loop 1 -i scoreboard.png -f mjpeg -i udp://localhost:9999"
+	OVERLAYS_IN="-re ${THREAD_QUEUE_SIZE} -loop 1 -i scoreboard.png -f mjpeg ${THREAD_QUEUE_SIZE} -i udp://localhost:9999"
 	FILTERCOMPLEX_OVERLAYS="\
 ;[2:video]${STDFILTER}[scoreboard]\
 ;[3:video]${STDFILTER}[playback]\
 ;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores0]\
-;[videores0][playback]overlay[videores]"
+;[videores0][playback]overlay=9999:eval=frame,zmq=bind_address=tcp\\\://${IP}\\\:5552[videores]"
 elif [ "$SCOREBOARD" == "Y" ]
 then
 	echo Scoreboard
-	OVERLAYS_IN="-re -loop 1 -i scoreboard.png"
+	OVERLAYS_IN="-f mjpeg ${THREAD_QUEUE_SIZE} -i udp://localhost:9999"
 	FILTERCOMPLEX_OVERLAYS=";[2:video]${STDFILTER}[scoreboard];[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores]"
 elif [ "$PLAYBACK" == "Y" ]
 then

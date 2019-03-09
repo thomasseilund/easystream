@@ -87,9 +87,47 @@ ffmpeg -re -f lavfi -i testsrc=size=hd720 -f mjpeg udp://localhost:9999
 
 
 Skab video med bestemt antal frames:
-ffmpeg -f lavfi -i testsrc=size=hd720 -frames:v 25 -f mjpeg 25.mjpeg
-ffmpeg -f lavfi -i color=c=green:size=hd720 -frames:v 1 -f mjpeg 1.mjpeg
-
+ffmpeg -f lavfi -i testsrc=size=hd720 -frames:v 25 -pix_fmt yuvj420p -f mjpeg 25.mjpeg
+ffmpeg -f lavfi -i color=c=green:size=hd720 -frames:v 1 -pix_fmt yuvj420p -f mjpeg 1.mjpeg
 
 Tæl antal frames i video:
 ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 1.mjpeg
+
+Compile w. zmq:
+gcc es_write_frames.c -o es_write_frames -lzmq
+
+Test es_write_frames:
+es_write_frames | ffplay -loglevel quiet -f mjpeg -i pipe:0
+
+Drop stderr output from es_write_frames:
+es_write_frames 2>/dev/null | ffplay -loglevel quiet -f mjpeg -i pipe:0
+
+Write frames to udp:
+es_write_frames | ffmpeg -loglevel quiet -f mjpeg -i pipe:0 -f mjpeg -c copy udp://localhost:9999
+
+See written frames in another process:
+ffplay -f mjpeg -i udp://localhost:9999
+
+Analyze streams with ffprobe. List ffprobe output in two files side by side:
+pr -m -t 135.txt live30s.txt | less
+
+Analyse video. Get detailed info:
+ffprobe -v error -show_format -show_streams live30s.mjpeg
+
+Two ffmpeg commands produce "EOI missing, emulating" message:
+ffmpeg -y -f lavfi -i color=c=green:size=hd720 -frames:v 25 -pix_fmt yuvj420p -f mjpeg 25a.mjpeg && ffmpeg -y -i 25a.mjpeg 25b.mjpeg
+
+Piece of captured video is prepared for playback:
+ffmpeg -y -i live30s.mkv -f mjpeg -pix_fmt yuvj420p -q:v 1 live30s.mjpeg
+
+Encode playback to correct dts - needed?
+es_write_frames -o 8 -b tcp://192.168.0.13:5552 2>/dev/null | ffmpeg -re -f mjpeg -i pipe:0 -filter_complex "[0:video]setpts=PTS-STARTPTS,fps=25[video]" -map [video] -f mjpeg - | ffplay -loglevel quiet -f mjpeg -i pipe:0
+
+Prod es_write_frames:
+es_write_frames  -o 8 -b tcp://192.168.0.13:5552 2>/dev/null | ffmpeg -re -f mjpeg -i pipe:0 -f mjpeg -c copy udp://localhost:9999
+
+Get frame count. Slow method required for mjpeg:
+ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 live30s.mjpeg
+
+es_write_frames - buffer through an extra ffmpeg proces:
+es_write_frames -o 8 -b tcp://192.168.0.13:5552 2>/dev/null | ffmpeg -loglevel quiet -f mjpeg -i pipe:0 -f mjpeg -c copy - | ffmpeg -re -f mjpeg -i pipe:0 -f mjpeg -c copy udp://localhost:9999
