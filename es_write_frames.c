@@ -24,23 +24,21 @@
 
 /* Global varialbles */
 int calls;
-
 const char *bind_address = "tcp://127.0.0.1:5555";
-// const char *in_filename_frame_1000_msec = NULL; /* frame 1 sec */
-// const char *in_filename_frame_0400_msec = NULL; /* frame 1/25 sec */
 unsigned long epoch; /* */
 unsigned long streamed_until;
 const char *overlay_number;
 int overlay_x; /* current value for overlay. If overlay_x = 0 then we playback */
 int frames_total;
+ulong start_milliseconds_since_epoch;
 
-
-
+/* Get number of seconds since epoch */
 static unsigned long get_epoch()
 {
   return (unsigned long)time(NULL);
 }
 
+/* Write timestamp with milliseconds to buf and return buf */
 static char* get_timestamp(char* buf)
 {
   struct timeb start;
@@ -55,35 +53,67 @@ static char* get_timestamp(char* buf)
   return buf;
 }
 
-/* Write frames to stdout and return number of frames */
+/* Get number of milliseconds since epoch */
+static ulong get_milliseconds_since_epoch()
+{
+  ulong res;
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (unsigned long long)(tv.tv_sec) * 1000 +
+      (unsigned long long)(tv.tv_usec) / 1000;
+}
+
+/* Peek at and return next character from open file pointer */
+int fpeek(FILE *fp)
+{
+  int c;
+  c = fgetc(fp);
+  ungetc(c, fp);
+  return c;
+}
+
+/*
+Write frames to stdout and return number of frames.
+Sleep if needed so we dont write more frames that needed for live playback.
+*/
 static int write_frames_from_open_file(FILE *fp, const char *filename)
 {
-  int ch, ch_last, frames, end_of_image;
+  int ch, ch_last, start_of_image, end_of_image, frames_expected;
   unsigned long epoch_now; /* */
   char timestamp[100];
-  //frames = 0;
   while ((ch = fgetc(fp)) != EOF)
   {
     if (ch_last == 255 && ch == 216)
-      frames++;
+      start_of_image++;
     if (ch_last == 255 && ch == 217)
+    {
       end_of_image++;
+      frames_total++;
+      /* Wait? */
+//      if (fpeek(fp) != EOF)
+      {
+        frames_expected = (get_milliseconds_since_epoch() - start_milliseconds_since_epoch) / 40;
+        if (frames_total > frames_expected)
+        {
+          usleep((frames_total - frames_expected) * 40 * 1000); /* milliseconds */
+          //fprintf(stderr, "usleep(): %i\ttotal: %i\texpected: %i\n", microseconds, frames_total, frames_expected);
+        }
+      }
+    }
     fprintf(stdout, "%c", ch);
     ch_last = ch;
     //fprintf(stderr, "%i\n", (int)ch);
   }
-  frames_total = frames_total + frames;
   epoch_now = get_epoch();
-  fprintf(stderr, "%s\t%s\t%i\t%i\t%f\t%lu\t%lu\t%i\n"
+  fprintf(stderr, "%s\t%s\tSOI: %i\tEOI: %i\tFPS: %f\tFrames written:%i\tFrames expected: %i\n"
     ,get_timestamp(timestamp)
     ,filename
-    ,frames
+    ,start_of_image
     ,end_of_image
     ,(float) frames_total / (epoch_now - epoch)
-    ,epoch_now
-    ,epoch
-    ,frames_total);
-  return frames;
+    ,frames_total
+    ,frames_expected);
+  return start_of_image;
 }
 
 /* Write frames to stdout and return number of frames */
@@ -133,6 +163,16 @@ static int overlay(int x)
   zmq_msg_t msg;
   char src_buf[254];
   char recv_buf[254];
+
+  /* Simulate now overlay */
+  // if (strcmp(overlay_number, "-1") == 0)
+  // {
+  //   return 1;
+  // }
+  if (overlay_number == NULL)
+  {
+    return 1;
+  }
 
   overlay_x = x;
 
@@ -303,7 +343,7 @@ static void usage(void)
          "-h                print this help\n"
   //       "-f                background frame, 1 sec\n"
   //       "-F                background frame 1/25 sec\n"
-         "-o                overlay number. See ffmpeg report output \n"
+         "-o                overlay number. See ffmpeg report output. If not specified then no overlay handling\n"
          "-i INFILE         set INFILE as input file, stdin if omitted\n");
 }
 
@@ -358,12 +398,13 @@ int main(int argc, char *argv[]) {
 
   epoch = streamed_until = get_epoch();
   overlay_x = 9999; /* don't show overlay/playback */
-  //overlay_init();
+  start_milliseconds_since_epoch = get_milliseconds_since_epoch();
 
   /*
     Call pause repeatedly. For each call we wait for timer to elapse-
     When timer epases we call DoStuff()
     */
+  DoStuff();
   while (1)
     pause();
 }
