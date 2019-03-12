@@ -31,6 +31,8 @@ const char *overlay_number;
 int overlay_x; /* current value for overlay. If overlay_x = 0 then we playback */
 int frames_total;
 ulong start_milliseconds_since_epoch;
+int overlay_delay_milliseconds;
+int logline;
 
 /* Get number of seconds since epoch */
 static unsigned long get_epoch()
@@ -73,86 +75,6 @@ int fpeek(FILE *fp)
 }
 
 /*
-Write frames to stdout and return number of frames.
-Sleep if needed so we dont write more frames that needed for live playback.
-*/
-static int write_frames_from_open_file(FILE *fp, const char *filename)
-{
-  int ch, ch_last, start_of_image, end_of_image, frames_expected;
-  unsigned long epoch_now; /* */
-  char timestamp[100];
-  while ((ch = fgetc(fp)) != EOF)
-  {
-    if (ch_last == 255 && ch == 216)
-      start_of_image++;
-    if (ch_last == 255 && ch == 217)
-    {
-      end_of_image++;
-      frames_total++;
-      /* Wait? */
-//      if (fpeek(fp) != EOF)
-      {
-        frames_expected = (get_milliseconds_since_epoch() - start_milliseconds_since_epoch) / 40;
-        if (frames_total > frames_expected)
-        {
-          usleep((frames_total - frames_expected) * 40 * 1000); /* milliseconds */
-          //fprintf(stderr, "usleep(): %i\ttotal: %i\texpected: %i\n", microseconds, frames_total, frames_expected);
-        }
-      }
-    }
-    fprintf(stdout, "%c", ch);
-    ch_last = ch;
-    //fprintf(stderr, "%i\n", (int)ch);
-  }
-  epoch_now = get_epoch();
-  fprintf(stderr, "%s\t%s\tSOI: %i\tEOI: %i\tFPS: %f\tFrames written:%i\tFrames expected: %i\n"
-    ,get_timestamp(timestamp)
-    ,filename
-    ,start_of_image
-    ,end_of_image
-    ,(float) frames_total / (epoch_now - epoch)
-    ,frames_total
-    ,frames_expected);
-  return start_of_image;
-}
-
-/* Write frames to stdout and return number of frames */
-static int write_frames(const char *filename)
-{
-  FILE *fp;
-  int frames;
-  if ((fp = fopen(filename, "r")) == NULL)
-  {
-    fprintf(stderr, "Error opening file %s: %s\n", filename, strerror( errno ));
-    return 0;
-  }
-  frames = write_frames_from_open_file(fp, filename);
-  fclose(fp);
-  return frames;
-}
-
-
-static int get_frames(const char *filename)
-{
-  FILE *fp;
-  char cmd[254];
-  int frames = -1;
-
-  sprintf(cmd, "ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 %s", filename);
-
-  if ((fp = popen(cmd, "r")) == NULL)
-  {
-    fprintf(stderr, "Error running command %s: %s\n", cmd, strerror( errno ));
-  }
-  else
-  {
-    fscanf(fp, "%i", &frames);
-    fclose(fp);
-  }
-  return frames;
-}
-
-/*
 Set x value for overlay. This activates or deactivates overlay
 depening on x value
 */
@@ -164,17 +86,15 @@ static int overlay(int x)
   char src_buf[254];
   char recv_buf[254];
 
+  /* Global var indicates if we do playback or not */
+  overlay_x = x;
+
   /* Simulate now overlay */
-  // if (strcmp(overlay_number, "-1") == 0)
-  // {
-  //   return 1;
-  // }
   if (overlay_number == NULL)
   {
+    fprintf(stderr, "Intention: set overlay: %i\n", x);
     return 1;
   }
-
-  overlay_x = x;
 
   fprintf(stderr, "Create ZMQ context\n");
   zmq_ctx = zmq_ctx_new();
@@ -242,12 +162,111 @@ static int overlay(int x)
 }
 
 /*
+Write frames to stdout and return number of frames.
+Sleep if needed so we dont write more frames that needed for live playback.
+If delay >= 0 then we handle playback otherwise handle filler.
+*/
+static int write_frames_from_open_file(FILE *fp, const char *filename, int delay)
+{
+  int ch, ch_last, start_of_image, end_of_image, frames_expected, milliseconds_since_start;
+  //unsigned long epoch_now; /* */
+  char timestamp[100];
+  start_of_image = end_of_image = 0;
+  while ((ch = fgetc(fp)) != EOF)
+  {
+    //fprintf(stderr, "SOI: %i\tEOI: %i\n", start_of_image, end_of_image);
+    if (ch_last == 255 && ch == 216)
+      start_of_image++;
+    if (ch_last == 255 && ch == 217)
+    {
+      end_of_image++;
+      frames_total++;
+
+      /* Take delay of over activation into accout? */
+      if (delay >= 0)
+      {
+        /* Yes. */
+        if (overlay_x != 0 && end_of_image * 40 > delay)
+          overlay(0);
+      }
+
+      milliseconds_since_start = get_milliseconds_since_epoch() - start_milliseconds_since_epoch;
+      frames_expected = (get_milliseconds_since_epoch() - start_milliseconds_since_epoch) / 40;
+
+      //epoch_now = get_epoch();
+      fprintf(stderr, "%s\t%s\tSOI: %i\tEOI: %i\tFPS: %f\tFrames written:%i\tFrames expected: %i\tms: %i\tLogline: %i\n"
+        ,get_timestamp(timestamp)
+        ,filename
+        ,start_of_image
+        ,end_of_image
+        ,(float) frames_total / milliseconds_since_start * 1000   /* FPS */
+        ,frames_total                                   /* Frames written */
+        ,milliseconds_since_start / 40                  /* Frames expected */
+        ,milliseconds_since_start
+        ,logline++);
+
+      /* Wait? */
+      if (frames_total > frames_expected)
+      {
+        usleep((frames_total - frames_expected) * 40 * 1000); /* milliseconds */
+        //fprintf(stderr, "usleep(): %i\ttotal: %i\texpected: %i\n", microseconds, frames_total, frames_expected);
+      }
+    }
+    fprintf(stdout, "%c", ch);
+    ch_last = ch;
+    //fprintf(stderr, "%i\n", (int)ch);
+  }
+  if (overlay_x == 0)
+    overlay(9999); /* stop show overlay,playback */
+  return start_of_image;
+}
+
+/* Write frames to stdout and return number of frames */
+static int write_frames(const char *filename)
+{
+  //fprintf(stderr, "1. static int write_frames(const char *filename)\n");
+  FILE *fp;
+  int frames;
+  if ((fp = fopen(filename, "r")) == NULL)
+  {
+    fprintf(stderr, "Error opening file %s: %s\n", filename, strerror( errno ));
+    return 0;
+  }
+  frames = write_frames_from_open_file(fp, filename, -1);
+  fclose(fp);
+  //fprintf(stderr, "2. static int write_frames(const char *filename)\n");
+  return frames;
+}
+
+
+static int get_frames(const char *filename)
+{
+  FILE *fp;
+  char cmd[254];
+  int frames = -1;
+
+  sprintf(cmd, "ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 %s", filename);
+
+  if ((fp = popen(cmd, "r")) == NULL)
+  {
+    fprintf(stderr, "Error running command %s: %s\n", cmd, strerror( errno ));
+  }
+  else
+  {
+    fscanf(fp, "%i", &frames);
+    fclose(fp);
+  }
+  return frames;
+}
+
+/*
  * DoStuff
  */
 static void DoStuff(void)
 {
   /* Do we have playback? */
   int frames;
+  int frames_single;
   FILE *fp;
   if ((fp = fopen(PLAY_BACK_FILE, "r")) != NULL)
   {
@@ -255,79 +274,33 @@ static void DoStuff(void)
     /* Rename playback file so new playback file can be placed in playback folder */
     rename(PLAY_BACK_FILE, PLAY_BACK_FILE_TEMP);
     /* Playback */
-    overlay(0); /* if we have -re option on ffmpeg command then .. */
-    frames = write_frames_from_open_file(fp, PLAY_BACK_FILE_TEMP);
+    //overlay(0); /* if we have -re option on ffmpeg command then .. */
+    frames = write_frames_from_open_file(fp, PLAY_BACK_FILE_TEMP, overlay_delay_milliseconds);
     fclose(fp);
+
+    // /* Handle sub second frame fillers */
+    // frames_single = frames mod 25;
+    // if (frames_single != 0)
+    // {
+    //   if ((fp = fopen(NO_PLAY_BACK_FILE_1, "r")) == NULL)
+    //   {
+    //     fprintf(stderr, "Error opening file %s: %s\n", NO_PLAY_BACK_FILE_1, strerror( errno ));
+    //     return 0;
+    //   }
+    //   for (int i = 0; i++; i < 25 - frames_single)
+    // frames = write_frames_from_open_file(fp, filename, -1);
+    // fclose(fp);
+
+
   }
   else
   {
     /* No, we have no playback. Use filler image */
-    if (overlay_x == 0)
-      overlay(9999); /* stop show overlay,playback */
     frames = write_frames(NO_PLAY_BACK_FILE_25);
     streamed_until++;
   }
 }
 
-
-/*
- * DoStuff
- */
-static void DoStuffOrig(void)
-{
-  fprintf(stderr, "%lu\n", streamed_until);
-
-  if (streamed_until <= get_epoch())
-  {
-    /* Do we have playback? */
-    FILE *fp;
-    if ((fp = fopen(PLAY_BACK_FILE, "r")) != NULL)
-    {
-      /* Yes, we do have playback */
-      /* Rename playback file so new playback file can be placed in playback folder */
-      rename(PLAY_BACK_FILE, PLAY_BACK_FILE_TEMP);
-      /* Playback */
-      overlay(0); /* if we have -re option on ffmpeg command then .. */
-      write_frames_from_open_file(fp, PLAY_BACK_FILE_TEMP);
-      fclose(fp);
-      /* Get number of frames in playback */
-      int frames = get_frames(PLAY_BACK_FILE_TEMP);
-      /* Get numbers of full seconds of playback */
-      int seconds_full = frames / 25;
-      /* Get numbers of second fractions, 1/25, of playback */
-      int seconds_fraction = frames % 25;
-      /* Stream so we are on the one second boundary */
-      if (seconds_fraction > 0)
-        for (int i = 0; i < 25 - seconds_fraction; i++)
-          write_frames(NO_PLAY_BACK_FILE_1);
-      /* Increase how long we have streamed */
-      streamed_until += seconds_full;
-      if (seconds_fraction > 0)
-        streamed_until++;
-      fprintf(stderr, "%s\tframes %i\tsec. %i\tsec. fraction %i/25\n"
-        ,PLAY_BACK_FILE
-        ,frames
-        ,seconds_full
-        ,seconds_fraction);
-    }
-    else
-    {
-      /* No, we have no playback. Use filler image */
-      if (overlay_x == 0)
-        overlay(9999); /* stop show overlay,playback */
-      write_frames(NO_PLAY_BACK_FILE_25);
-      streamed_until++;
-    }
-  }
-
-
-  // char timestamp[100];
-  // calls++;
-  // int c = calls;
-  // printf("A\t%d\t%s\tTimer went off.\n", c, get_timestamp(timestamp));
-  // //sleep(1);
-  // printf("B\t%d\t%s\n", c, get_timestamp(timestamp));
-}
 
 static void usage(void)
 {
@@ -344,13 +317,14 @@ static void usage(void)
   //       "-f                background frame, 1 sec\n"
   //       "-F                background frame 1/25 sec\n"
          "-o                overlay number. See ffmpeg report output. If not specified then no overlay handling\n"
+         "-d                overlay delay in milliseconds. Usefull if redering is delayed\n"
          "-i INFILE         set INFILE as input file, stdin if omitted\n");
 }
 
 int main(int argc, char *argv[]) {
   /* Get command line options */
   int c;
-  while ((c = getopt(argc, argv, "hf:F:o:b:")) != -1) {
+  while ((c = getopt(argc, argv, "hf:F:o:b:d:")) != -1) {
       switch (c) {
         case 'b':
           bind_address = optarg;
@@ -373,28 +347,31 @@ int main(int argc, char *argv[]) {
           //   return -1;
           // }
           break;
+      case 'd':
+          overlay_delay_milliseconds = atoi(optarg);
+          break;
       case '?':
           return 1;
       }
   }
 
-  /* Set up timer */
-  struct itimerval it_val;      /* for setting itimer */
-
-  /* Upon SIGALRM, call DoStuff().
-   * Set interval timer.  We want frequency in ms,
-   * but the setitimer call needs seconds and useconds. */
-  if (signal(SIGALRM, (void (*)(int)) DoStuff) == SIG_ERR) {
-    perror("Unable to catch SIGALRM");
-    exit(1);
-  }
-  it_val.it_value.tv_sec =     INTERVAL/1000;
-  it_val.it_value.tv_usec =    (INTERVAL*1000) % 1000000;
-  it_val.it_interval = it_val.it_value;
-  if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
-    perror("error calling setitimer()");
-    exit(1);
-  }
+  // /* Set up timer */
+  // struct itimerval it_val;      /* for setting itimer */
+  //
+  // /* Upon SIGALRM, call DoStuff().
+  //  * Set interval timer.  We want frequency in ms,
+  //  * but the setitimer call needs seconds and useconds. */
+  // if (signal(SIGALRM, (void (*)(int)) DoStuff) == SIG_ERR) {
+  //   perror("Unable to catch SIGALRM");
+  //   exit(1);
+  // }
+  // it_val.it_value.tv_sec =     INTERVAL/1000;
+  // it_val.it_value.tv_usec =    (INTERVAL*1000) % 1000000;
+  // it_val.it_interval = it_val.it_value;
+  // if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+  //   perror("error calling setitimer()");
+  //   exit(1);
+  // }
 
   epoch = streamed_until = get_epoch();
   overlay_x = 9999; /* don't show overlay/playback */
@@ -404,7 +381,8 @@ int main(int argc, char *argv[]) {
     Call pause repeatedly. For each call we wait for timer to elapse-
     When timer epases we call DoStuff()
     */
-  DoStuff();
+  //DoStuff();
   while (1)
-    pause();
+    //pause();
+    DoStuff();
 }

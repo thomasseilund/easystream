@@ -33,6 +33,7 @@ AUDIOOUTPUTCODEC="-c:a aac -b:a 128k -ar 44100 -strict -2"
 THREAD_QUEUE_SIZE="-thread_queue_size 64"
 STDFILTER="setpts=PTS-STARTPTS,fps=25"
 IP=`hostname  -I | cut -f1 -d' '`
+# PLAYBACK_RAMDISK="./tmp/playback.mjpeg"
 #
 # Variables
 #
@@ -78,6 +79,7 @@ case $opt in
 	help
 	;;
 	R)
+	#REPORT="-report -loglevel trace"
 	REPORT="-report"
 	;;
 	N)
@@ -129,7 +131,7 @@ fi
 
 if [ "$PLAYBACK" == "Y" ]
 then
-	if [ ! -d ./plabackNo ]
+	if [ ! -d ./playbackNo ]
 	then
 		mkdir ./playbackNo
 	fi
@@ -147,11 +149,16 @@ VIDEO_IN="-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${SIZE} -i /dev/vi
 # Main audio
 AUDIO_IN="-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"
 
+OVERLAY_IN_PLAYBACK="-f mjpeg ${THREAD_QUEUE_SIZE} -i pipe:0"
+OVERLAY_IN_SCOREBOARD="-re ${THREAD_QUEUE_SIZE} -loop 1 -i scoreboard.png"
+
 # Overlays
 if [ "$SCOREBOARD" == "Y" ] && [ "$PLAYBACK" == "Y" ]
 then
 	echo Scoreboard and playback
-	OVERLAYS_IN="-re ${THREAD_QUEUE_SIZE} -loop 1 -i scoreboard.png -f mjpeg ${THREAD_QUEUE_SIZE} -i udp://localhost:9999"
+	PLAYBACK_OVERLAYNUM=8
+	OVERLAYS_IN="${OVERLAY_IN_SCOREBOARD} ${OVERLAY_IN_PLAYBACK}"
+
 	FILTERCOMPLEX_OVERLAYS="\
 ;[2:video]${STDFILTER}[scoreboard]\
 ;[3:video]${STDFILTER}[playback]\
@@ -160,13 +167,17 @@ then
 elif [ "$SCOREBOARD" == "Y" ]
 then
 	echo Scoreboard
-	OVERLAYS_IN="-f mjpeg ${THREAD_QUEUE_SIZE} -i udp://localhost:9999"
-	FILTERCOMPLEX_OVERLAYS=";[2:video]${STDFILTER}[scoreboard];[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores]"
+	OVERLAYS_IN=${OVERLAY_IN_SCOREBOARD}
+	FILTERCOMPLEX_OVERLAYS="\
+;[2:video]${STDFILTER}[scoreboard];[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores]"
 elif [ "$PLAYBACK" == "Y" ]
 then
 	echo Playback
-	OVERLAYS_IN="-re -loop 1 -i scoreboard.png"
-	FILTERCOMPLEX_OVERLAYS=";[1:video]${STDFILTER}[scoreboard]"
+	PLAYBACK_OVERLAYNUM=5
+	OVERLAYS_IN=${OVERLAY_IN_PLAYBACK}
+	FILTERCOMPLEX_OVERLAYS="\
+;[2:video]${STDFILTER}[playback]\
+;[cam][playback]overlay=9999:eval=frame:eof_action=endall,zmq=bind_address=tcp\\\://${IP}\\\:5552[videores]"
 else
 	FILTERCOMPLEX_OVERLAYS=";[cam]null[videores]"
 fi
@@ -201,6 +212,8 @@ VIDEO_OUT_DISPLAY="-map [videox] -f xv -pix_fmt yuv420p display"
 #
 int_handler()
 {
+	# sudo killall es_write_frames
+	# ps -aux | grep es_write_frames
 	exit
 }
 trap 'int_handler' INT
@@ -228,21 +241,39 @@ while true; do
 		OUTPUT_FILE=./stream/`date +"%Y.%m.%d-%H:%M:%S.%N"`.mkv
 	fi
 
-	ffmpeg \
-	${REPORT} \
-	${VIDEO_IN} \
-	${AUDIO_IN} \
-	${OVERLAYS_IN} \
-	-filter_complex ${FILTERCOMPLEX} \
-	${VIDEO_OUT_OPTIONS} \
-	${AUDIO_OUT_OPTIONS} \
-	${OUTPUT_FILE} \
-	${VIDEO_OUT_DISPLAY}
-	# ${OUTPUTMAP} \
-	# ${VIDEOOUTPUTCODEC} \
-	# ${AUDIOOUTPUTCODEC} \
-	# ${OUTPUT} \
-	# ${BROADCAST}
+	# if [ "$PLAYBACK" == "Y" ]
+	# then
+	# 	es_write_frames -o 5 -b tcp://${IP}:5552 > "$PLAYBACK_RAMDISK" 2>/dev/null &
+	# 	PLAYBACK_PID=$$
+	# 	echo $PLAYBACK_PID
+	# 	sleep 10
+	# fi
+
+	if [ "$PLAYBACK" == "Y" ]
+	then
+		es_write_frames -d 750 -o ${PLAYBACK_OVERLAYNUM} -b tcp://${IP}:5552 2>/dev/null | \
+		ffmpeg \
+		${REPORT} \
+		${VIDEO_IN} \
+		${AUDIO_IN} \
+		${OVERLAYS_IN} \
+		-filter_complex ${FILTERCOMPLEX} \
+		${VIDEO_OUT_OPTIONS} \
+		${AUDIO_OUT_OPTIONS} \
+		${OUTPUT_FILE} \
+		${VIDEO_OUT_DISPLAY}
+	else
+		ffmpeg \
+		${REPORT} \
+		${VIDEO_IN} \
+		${AUDIO_IN} \
+		${OVERLAYS_IN} \
+		-filter_complex ${FILTERCOMPLEX} \
+		${VIDEO_OUT_OPTIONS} \
+		${AUDIO_OUT_OPTIONS} \
+		${OUTPUT_FILE} \
+		${VIDEO_OUT_DISPLAY}
+	fi
 
 	# Why did endoding stop?
 	echo -en "\r" `date +"%Y-%m-%d %H:%M:%S,%3N"` "ffmpeg ended with $?. Respawning" >&2

@@ -3,7 +3,7 @@
 function help {
   echo "Focus camera. First, capture camera to display with \`ffplay -i /dev/video2\` If needed, adjust video input device"
   echo "Call $0 -v 1|2|3.. -h"
-  echo "-v video input device. Use v4l2-ctl --list-devices"
+  echo "-v video input device. Use es_devices.sh"
   echo "-h show this help text"
   exit 0
 }

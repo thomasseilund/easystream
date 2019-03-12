@@ -120,9 +120,6 @@ ffmpeg -y -f lavfi -i color=c=green:size=hd720 -frames:v 25 -pix_fmt yuvj420p -f
 Piece of captured video is prepared for playback:
 ffmpeg -y -i live30s.mkv -f mjpeg -pix_fmt yuvj420p -q:v 1 live30s.mjpeg
 
-Encode playback to correct dts - needed?
-es_write_frames -o 8 -b tcp://192.168.0.13:5552 2>/dev/null | ffmpeg -re -f mjpeg -i pipe:0 -filter_complex "[0:video]setpts=PTS-STARTPTS,fps=25[video]" -map [video] -f mjpeg - | ffplay -loglevel quiet -f mjpeg -i pipe:0
-
 Prod es_write_frames:
 es_write_frames  -o 8 -b tcp://192.168.0.13:5552 2>/dev/null | ffmpeg -re -f mjpeg -i pipe:0 -f mjpeg -c copy udp://localhost:9999
 
@@ -131,3 +128,9 @@ ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_
 
 es_write_frames - buffer through an extra ffmpeg proces:
 es_write_frames -o 8 -b tcp://192.168.0.13:5552 2>/dev/null | ffmpeg -loglevel quiet -f mjpeg -i pipe:0 -f mjpeg -c copy - | ffmpeg -re -f mjpeg -i pipe:0 -f mjpeg -c copy udp://localhost:9999
+
+Extract into individual images:
+ffmpeg -y -i ../live30s.mjpeg -f image2 -q:v 1 live30s-%03d.jpeg
+
+Create RAM disk for playback file:
+sudo mount tmpfs ./tmp/ -t tmpfs -o size=1G
