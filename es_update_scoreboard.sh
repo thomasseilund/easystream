@@ -4,6 +4,7 @@ function help {
 	echo "Control numbers shown in scoreboard in call es_stream_to_upd -t scoreboard"
 	echo "Call $0 -i 1.2.3.4 -p zmqsend -h"
 	echo "-i ip of host running es_stream, if not local host -p full path and name of zmqsend, use if zmqsend is not on path -h"
+	echo "-V verbose"
 	echo "For test use \"es_test_data_to_scoreboard.sh | es_update_scoreboard.sh\""
 	exit 0
 }
@@ -12,9 +13,10 @@ function help {
 IP=`hostname  -I | cut -f1 -d' '`
 # zmqsend program
 ZMQSEND=zmqsend
+SCOREBOARD_PORT=5551
 
 # Get command line options - see http://wiki.bash-hackers.org/howto/getopts_tutorial
-while getopts ":i:p:hx" opt; do
+while getopts ":i:p:hxV" opt; do
   case $opt in
     i)
       IP=$OPTARG
@@ -28,6 +30,9 @@ while getopts ":i:p:hx" opt; do
 		h)
 			help
       ;;
+		V)
+			set -x
+			;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
       help
@@ -67,12 +72,12 @@ do
 		echo -en "\033]2;$QUARTER Qrt. Home $HOMESCORE Away $AWAYSCORE ${MINUTE}:${SECOND} $SHOTCLOCK\007"
 		echo ${LINE}
 		# Send values to instance of ffmpeg creating the scoreboard
-		echo Parsed_drawtext_4 reinit text=${MINUTE}		| ${ZMQSEND} -b tcp://${IP}:5551
-		echo Parsed_drawtext_5 reinit text=${SECOND}		| ${ZMQSEND} -b tcp://${IP}:5551
-		echo Parsed_drawtext_6 reinit text=${QUARTER}		| ${ZMQSEND} -b tcp://${IP}:5551
-		echo Parsed_drawtext_7 reinit text=${HOMESCORE}	| ${ZMQSEND} -b tcp://${IP}:5551
-		echo Parsed_drawtext_8 reinit text=${SHOTCLOCK}	| ${ZMQSEND} -b tcp://${IP}:5551
-		echo Parsed_drawtext_9 reinit text=${AWAYSCORE}	| ${ZMQSEND} -b tcp://${IP}:5551
+		echo Parsed_drawtext_5 reinit text=${MINUTE}		| ${ZMQSEND} -b tcp://${IP}:${SCOREBOARD_PORT}
+		echo Parsed_drawtext_6 reinit text=${SECOND}		| ${ZMQSEND} -b tcp://${IP}:${SCOREBOARD_PORT}
+		echo Parsed_drawtext_7 reinit text=${QUARTER}		| ${ZMQSEND} -b tcp://${IP}:${SCOREBOARD_PORT}
+		echo Parsed_drawtext_8 reinit text=${HOMESCORE}	| ${ZMQSEND} -b tcp://${IP}:${SCOREBOARD_PORT}
+		echo Parsed_drawtext_9 reinit text=${SHOTCLOCK}	| ${ZMQSEND} -b tcp://${IP}:${SCOREBOARD_PORT}
+		echo Parsed_drawtext_10 reinit text=${AWAYSCORE}	| ${ZMQSEND} -b tcp://${IP}:${SCOREBOARD_PORT}
 		L=0
 	fi
 done

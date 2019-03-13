@@ -134,3 +134,9 @@ ffmpeg -y -i ../live30s.mjpeg -f image2 -q:v 1 live30s-%03d.jpeg
 
 Create RAM disk for playback file:
 sudo mount tmpfs ./tmp/ -t tmpfs -o size=1G
+
+Create video of scoreboard:
+Med -re og loop på jpg af scoreboard så er ffmpeg lang tid om at komme op på 1.0 hastighed.
+Derfor laves video af scoreboard. Det nytter ikke at have loop-filter over en enkelt frame,
+for så kommer tal for scoreboard ikke ind!
+ffmpeg -f mjpeg -i scoreboard.mjpeg -vf loop=loop=100000:size=1:start=0 -q:v 1 -f mjpeg scoreboard100.mjpeg

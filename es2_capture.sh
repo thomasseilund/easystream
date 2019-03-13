@@ -5,8 +5,7 @@
 #
 
 function help {
-	echo "Capture and show stream based on UVC camera"
-	echo "Stream is saved as a time stamped file in subdirectory ./stream"
+	echo "Capture and show stream from UVC camera"
 	echo "Optionally add scoreboard and playback"
 	echo "Call $(basename $0) -v 1|2|3... -s hd480|hd720|hd1080|WxH -r 10|24|25|30... -a 0|1|0:0... -b -h -V -R"
 	echo "Ie. \`es2_capture.sh -v 2 -s hd720 -r 24 -a 1\`"
@@ -17,7 +16,7 @@ function help {
 	echo "-V verbose"
 	echo "-h help - this text"
 	echo "-R ffmpeg report. See report for overlay numbers"
-	echo "-N no output file. Default is ./stream/timestamped-file.mkv"
+	echo "-D path where stream is saved as timestamped-file.mkv"
 	echo "-S overlay scoreboard"
 	echo "-P overlay playback"
 	exit 0
@@ -33,23 +32,15 @@ AUDIOOUTPUTCODEC="-c:a aac -b:a 128k -ar 44100 -strict -2"
 THREAD_QUEUE_SIZE="-thread_queue_size 64"
 STDFILTER="setpts=PTS-STARTPTS,fps=25"
 IP=`hostname  -I | cut -f1 -d' '`
-# PLAYBACK_RAMDISK="./tmp/playback.mjpeg"
-#
-# Variables
-#
-
-# BROADCAST=""
-# #FN=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf
-# FT=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf
-# #FC=red
-# # Font and box
-# FB="fontsize=30:fontcolor=red:box=1:boxcolor=black"
+SCOREBOARD_PORT=5551
+PLAYBACK_PORT=5552
+SCOREBOARD_FONT_FILE_AND_SIZE="fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf:fontsize=30"
 
 #
 # Handle command line arguments. See http://wiki.bash-hackers.org/howto/getopts_tutorial
 #
 
-while getopts "v:s:r:a:n:VhRNSP" opt; do
+while getopts "v:s:r:a:n:VhRD:SP" opt; do
 case $opt in
 	v)
 	VDEVICE=$OPTARG
@@ -82,8 +73,9 @@ case $opt in
 	#REPORT="-report -loglevel trace"
 	REPORT="-report"
 	;;
-	N)
-	NOOUTPUT=Y
+	D)
+	STREAM_PATH=$OPTARG
+	#NOOUTPUT=Y
 	;;
 	\?)
 	echo "Invalid option: -$OPTARG" >&2
@@ -126,7 +118,7 @@ fi
 
 
 #
-# If playback then create filler images
+# If playback then create filler image
 #
 
 if [ "$PLAYBACK" == "Y" ]
@@ -135,7 +127,7 @@ then
 	then
 		mkdir ./playbackNo
 	fi
-	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 1 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/1.mjpeg
+	# ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 1 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/1.mjpeg
 	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 25 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/25.mjpeg
 fi
 
@@ -150,44 +142,50 @@ VIDEO_IN="-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${SIZE} -i /dev/vi
 AUDIO_IN="-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"
 
 OVERLAY_IN_PLAYBACK="-f mjpeg ${THREAD_QUEUE_SIZE} -i pipe:0"
-OVERLAY_IN_SCOREBOARD="-re ${THREAD_QUEUE_SIZE} -loop 1 -i scoreboard.png"
+OVERLAY_IN_SCOREBOARD="-f mjpeg ${THREAD_QUEUE_SIZE} -i scoreboard100.mjpeg"
+SCOREBOARD_FILTER_SHOW_NUMBERS="\
+drawtext=${SCOREBOARD_FONT_FILE_AND_SIZE}:fontcolor=red:box=1:boxcolor=black:text=11:x=63:y=25+main_h-100\
+,drawtext=${SCOREBOARD_FONT_FILE_AND_SIZE}:fontcolor=red:box=1:boxcolor=black:text=22:x=101:y=25+main_h-100\
+,drawtext=${SCOREBOARD_FONT_FILE_AND_SIZE}:fontcolor=red:box=1:boxcolor=black:text=3:x=200/2-text_w/2:y=50+main_h-100\
+,drawtext=${SCOREBOARD_FONT_FILE_AND_SIZE}:fontcolor=red:box=1:boxcolor=black:text=44:x=25:y=72+main_h-100\
+,drawtext=${SCOREBOARD_FONT_FILE_AND_SIZE}:fontcolor=red:box=1:boxcolor=black:text=55:x=(200-text_w)/2:y=72+main_h-100\
+,drawtext=${SCOREBOARD_FONT_FILE_AND_SIZE}:fontcolor=red:box=1:boxcolor=black:text=66:x=140:y=72+main_h-100\
+,zmq=bind_address=tcp\\\://${IP}\\\:${SCOREBOARD_PORT}"
 
 # Overlays
 if [ "$SCOREBOARD" == "Y" ] && [ "$PLAYBACK" == "Y" ]
 then
 	echo Scoreboard and playback
-	PLAYBACK_OVERLAYNUM=8
+	# Find this number from ffmpeg report
+	PLAYBACK_OVERLAYNUM=15
 	OVERLAYS_IN="${OVERLAY_IN_SCOREBOARD} ${OVERLAY_IN_PLAYBACK}"
 
+#	;[2:video]${STDFILTER},loop=loop=-1:size=1:start=0,${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
+
 	FILTERCOMPLEX_OVERLAYS="\
-;[2:video]${STDFILTER}[scoreboard]\
+;[2:video]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
 ;[3:video]${STDFILTER}[playback]\
 ;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores0]\
-;[videores0][playback]overlay=9999:eval=frame,zmq=bind_address=tcp\\\://${IP}\\\:5552[videores]"
+;[videores0][playback]overlay=9999:eval=frame,zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores]"
 elif [ "$SCOREBOARD" == "Y" ]
 then
 	echo Scoreboard
 	OVERLAYS_IN=${OVERLAY_IN_SCOREBOARD}
 	FILTERCOMPLEX_OVERLAYS="\
-;[2:video]${STDFILTER}[scoreboard];[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores]"
+;[2:video]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
+;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores]"
 elif [ "$PLAYBACK" == "Y" ]
 then
 	echo Playback
+	# Find this number from ffmpeg report
 	PLAYBACK_OVERLAYNUM=5
 	OVERLAYS_IN=${OVERLAY_IN_PLAYBACK}
 	FILTERCOMPLEX_OVERLAYS="\
 ;[2:video]${STDFILTER}[playback]\
-;[cam][playback]overlay=9999:eval=frame:eof_action=endall,zmq=bind_address=tcp\\\://${IP}\\\:5552[videores]"
+;[cam][playback]overlay=9999:eval=frame:eof_action=endall,zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores]"
 else
 	FILTERCOMPLEX_OVERLAYS=";[cam]null[videores]"
 fi
-
-#
-# Maps
-#
-
-
-
 
 #
 # Filter complex
@@ -212,19 +210,9 @@ VIDEO_OUT_DISPLAY="-map [videox] -f xv -pix_fmt yuv420p display"
 #
 int_handler()
 {
-	# sudo killall es_write_frames
-	# ps -aux | grep es_write_frames
 	exit
 }
 trap 'int_handler' INT
-
-#
-# Make directory for output file
-#
-if [ ! -d stream ] && [ "$NOOUTPUT" == "" ]
-then
-	mkdir stream
-fi
 
 #
 # Capture until ctrl+c
@@ -234,24 +222,16 @@ while true; do
 	echo -en "\033]2;Stream to LAN (\"${TYPE}\") from ( \"${DEVICE}\"). Size ${W}x${H}. Destination ${OUTPUT}\007"
 
 	# Create output file?
-	if [ "$NOOUTPUT" == "Y" ]
+	if [ "$STREAM_PATH" == "" ]
 	then
 		OUTPUT_FILE="-y -f matroska /dev/null"
 	else
-		OUTPUT_FILE=./stream/`date +"%Y.%m.%d-%H:%M:%S.%N"`.mkv
+		OUTPUT_FILE=${STREAM_PATH}/`date +"%Y.%m.%d-%H-%M-%S"`.mkv
 	fi
-
-	# if [ "$PLAYBACK" == "Y" ]
-	# then
-	# 	es_write_frames -o 5 -b tcp://${IP}:5552 > "$PLAYBACK_RAMDISK" 2>/dev/null &
-	# 	PLAYBACK_PID=$$
-	# 	echo $PLAYBACK_PID
-	# 	sleep 10
-	# fi
 
 	if [ "$PLAYBACK" == "Y" ]
 	then
-		es_write_frames -d 750 -o ${PLAYBACK_OVERLAYNUM} -b tcp://${IP}:5552 2>/dev/null | \
+		es_write_frames -d 750 -o ${PLAYBACK_OVERLAYNUM} -b tcp://${IP}:${PLAYBACK_PORT} 2>/dev/null | \
 		ffmpeg \
 		${REPORT} \
 		${VIDEO_IN} \
