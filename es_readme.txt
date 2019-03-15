@@ -140,3 +140,12 @@ Med -re og loop på jpg af scoreboard så er ffmpeg lang tid om at komme op på 
 Derfor laves video af scoreboard. Det nytter ikke at have loop-filter over en enkelt frame,
 for så kommer tal for scoreboard ikke ind!
 ffmpeg -f mjpeg -i scoreboard.mjpeg -vf loop=loop=100000:size=1:start=0 -q:v 1 -f mjpeg scoreboard100.mjpeg
+
+ffplay with on display text:
+ffplay -vf drawtext="fontsize=30:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf:text='%{pts\:hms}':box=1:x=(w-tw)/2:y=h-(2*lh)" -i stream/2019.03.15-14-16-45.mkv
+
+extract video:
+ffmpeg -y -ss 45.34 -i stream/2019.03.15-14-16-45.mkv -map 0:v -t 44.23 -f mjpeg -c copy exract.mjpeg
+
+copy adjusted version of ffplay.c before commit:
+cp ~/ffmpeg_sources/ffmpeg/fftools/ffplay.c ~/github/easystream/

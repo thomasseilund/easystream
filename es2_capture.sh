@@ -74,7 +74,7 @@ case $opt in
 	REPORT="-report"
 	;;
 	D)
-	STREAM_PATH=$OPTARG
+	STREAM_PATH=`echo $OPTARG | sed 's:/*$::'`
 	#NOOUTPUT=Y
 	;;
 	\?)

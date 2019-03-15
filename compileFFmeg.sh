@@ -4,38 +4,38 @@
 # Compile FFmpeg for Ubuntu, Debian, or Mint
 # https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu
 
-sudo apt-get update -qq && sudo apt -y install \
-  autoconf \
-  automake \
-  build-essential \
-  cmake \
-  git-core \
-  libass-dev \
-  libfreetype6-dev \
-  libsdl2-dev \
-  libtool \
-  libva-dev \
-  libvdpau-dev \
-  libvorbis-dev \
-  libxcb1-dev \
-  libxcb-shm0-dev \
-  libxcb-xfixes0-dev \
-  pkg-config \
-  texinfo \
-  wget \
-  zlib1g-dev
-
-mkdir -p ~/ffmpeg_sources ~/bin
-
-sudo apt -y install yasm
-
-sudo apt -y install libx264-dev
-
-sudo apt -y install libfdk-aac-dev
-
-sudo apt -y install libmp3lame-dev
-
-sudo apt -y install libzmq3-dev
+# sudo apt-get update -qq && sudo apt -y install \
+#   autoconf \
+#   automake \
+#   build-essential \
+#   cmake \
+#   git-core \
+#   libass-dev \
+#   libfreetype6-dev \
+#   libsdl2-dev \
+#   libtool \
+#   libva-dev \
+#   libvdpau-dev \
+#   libvorbis-dev \
+#   libxcb1-dev \
+#   libxcb-shm0-dev \
+#   libxcb-xfixes0-dev \
+#   pkg-config \
+#   texinfo \
+#   wget \
+#   zlib1g-dev
+#
+# mkdir -p ~/ffmpeg_sources ~/bin
+#
+# sudo apt -y install yasm
+#
+# sudo apt -y install libx264-dev
+#
+# sudo apt -y install libfdk-aac-dev
+#
+# sudo apt -y install libmp3lame-dev
+#
+# sudo apt -y install libzmq3-dev
 
 # tps nov 2018. I get this error when I compile ffmpeg: "ERROR: libzmq not found using pkg-config"
 # Edit and comment out line Libs.private: -lstdc++  -lsodium -lpgm -lpthread -lm -lnorm
@@ -48,8 +48,8 @@ sudo apt -y install libzmq3-dev
 
 cd ~/ffmpeg_sources && \
 # Use next two lines if you want to get ffmpeg code. For now, now need to get code!
-wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
-tar xjvf ffmpeg-snapshot.tar.bz2 && \
+# wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
+# tar xjvf ffmpeg-snapshot.tar.bz2 && \
 cd ffmpeg && \
 PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure \
   --prefix="$HOME/ffmpeg_build" \
@@ -66,6 +66,7 @@ PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./conf
   --enable-libvorbis \
   --enable-libx264 \
   --enable-libzmq \
+  --disable-doc \
   --enable-nonfree && \
 PATH="$HOME/bin:$PATH" make && \
 PATH="$HOME/bin:$PATH" make tools/zmqsend && \
@@ -73,6 +74,6 @@ cp tools/zmqsend $HOME/bin
 make install && \
 hash -r
 
-sudo apt -y install v4l-utils
-# Suspend on close lid
-sudo apt -y install pm-utils
+# sudo apt -y install v4l-utils
+# # Suspend on close lid
+# sudo apt -y install pm-utils
