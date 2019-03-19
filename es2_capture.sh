@@ -16,7 +16,7 @@ function help {
 	echo "-V verbose"
 	echo "-h help - this text"
 	echo "-R ffmpeg report. See report for overlay numbers"
-	echo "-D path where stream is saved as timestamped-file.mkv"
+	echo "-D path where stream is saved as timestamped-file.mkv. Path must exist"
 	echo "-S overlay scoreboard"
 	echo "-P overlay playback"
 	exit 0
@@ -74,8 +74,8 @@ case $opt in
 	REPORT="-report"
 	;;
 	D)
+	# remove traling slash
 	STREAM_PATH=`echo $OPTARG | sed 's:/*$::'`
-	#NOOUTPUT=Y
 	;;
 	\?)
 	echo "Invalid option: -$OPTARG" >&2
@@ -163,8 +163,8 @@ then
 #	;[2:video]${STDFILTER},loop=loop=-1:size=1:start=0,${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
 
 	FILTERCOMPLEX_OVERLAYS="\
-;[2:video]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
-;[3:video]${STDFILTER}[playback]\
+;[2:0]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
+;[3:0]${STDFILTER}[playback]\
 ;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores0]\
 ;[videores0][playback]overlay=9999:eval=frame,zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores]"
 elif [ "$SCOREBOARD" == "Y" ]
@@ -172,7 +172,7 @@ then
 	echo Scoreboard
 	OVERLAYS_IN=${OVERLAY_IN_SCOREBOARD}
 	FILTERCOMPLEX_OVERLAYS="\
-;[2:video]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
+;[2:0]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
 ;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores]"
 elif [ "$PLAYBACK" == "Y" ]
 then
@@ -181,7 +181,7 @@ then
 	PLAYBACK_OVERLAYNUM=5
 	OVERLAYS_IN=${OVERLAY_IN_PLAYBACK}
 	FILTERCOMPLEX_OVERLAYS="\
-;[2:video]${STDFILTER}[playback]\
+;[2:0]${STDFILTER}[playback]\
 ;[cam][playback]overlay=9999:eval=frame:eof_action=endall,zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores]"
 else
 	FILTERCOMPLEX_OVERLAYS=";[cam]null[videores]"
@@ -192,8 +192,8 @@ fi
 #
 
 FILTERCOMPLEX="\
-[0:video]${STDFILTER}[cam]\
-;[1:audio]anull[audio]\
+[0:0]${STDFILTER}[cam]\
+;[1:0]anull[audio]\
 ${FILTERCOMPLEX_OVERLAYS}\
 ;[videores]split[video][videox]"
 

@@ -3289,10 +3289,23 @@ static void tps_make_playback_file(VideoState *is)
   int rc;
   if (tps_struct.state == 2)
   {
-    sprintf(cmd, "ffmpeg -y -ss %f -i %s -map 0:v -t %f -f mjpeg -c copy exract.mjpeg"
+    sprintf(cmd, "ffmpeg -y -ss %f -i %s -map 0:v -t %f -f mjpeg -c copy extract.mjpeg"
     , tps_struct.mark_start
     , is->filename
     , tps_struct.mark_end - tps_struct.mark_start);
+    fprintf(stderr, "tps: %s\n", cmd);
+    rc = system(cmd);
+    fprintf(stderr, "tps: %i\n", rc);
+  }
+}
+
+static void tps_use_playback_file()
+{
+  char cmd[254];
+  int rc;
+  if (tps_struct.state == 2)
+  {
+    sprintf(cmd, "cp extract.mjpeg playback/playback.mjpeg");
     fprintf(stderr, "tps: %s\n", cmd);
     rc = system(cmd);
     fprintf(stderr, "tps: %i\n", rc);
@@ -3326,8 +3339,10 @@ static void event_loop(VideoState *cur_stream)
                 tps_set_mark(cur_stream);
                 break;
             case SDLK_3:
-            case SDLK_4:
                 tps_make_playback_file(cur_stream);
+                break;
+            case SDLK_4:
+                tps_use_playback_file();
                 break;
             case SDLK_f:
                 toggle_full_screen(cur_stream);
