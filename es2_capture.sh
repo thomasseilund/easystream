@@ -128,7 +128,7 @@ then
 		mkdir ./playbackFiller
 	fi
 	# ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 1 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/1.mjpeg
-	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 25 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/25.mjpeg
+	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 25 -pix_fmt $PIX_FMT -f mjpeg ./playbackFiller/25.mjpeg
 fi
 
 #
@@ -226,6 +226,7 @@ while true; do
 	then
 		OUTPUT_FILE="-y -f matroska /dev/null"
 	else
+		[[ -d ${STREAM_PATH} ]] || mkdir ${STREAM_PATH}
 		OUTPUT_FILE=${STREAM_PATH}/`date +"%Y.%m.%d-%H-%M-%S"`.mkv
 	fi
 

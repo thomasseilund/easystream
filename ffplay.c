@@ -23,6 +23,9 @@
  * simple media player based on the FFmpeg libraries
  */
 
+#include <unistd.h>
+
+
 #include "config.h"
 #include <inttypes.h>
 #include <math.h>
@@ -3261,55 +3264,114 @@ static void seek_chapter(VideoState *is, int incr)
 //static int tps_state; /* 0:init, 1: start mark has been set */
 //static FILE tpsFP;
 struct tps_struct_type {
-  int state; /* 0:init, 1: start mark has been set */
+//  int state; /* 0:init, 1: start mark has been set */
   double mark_start;
   double mark_end;
 };
 static struct tps_struct_type tps_struct;
 
-static void tps_set_mark(VideoState *is)
+static int tps_file_exist (const char *filename)
 {
-  if (tps_struct.state == 0)
+  // struct stat   buffer;
+  // return (stat (filename, &buffer) == 0);
+  if( access( filename, F_OK ) != -1 ) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static void tps_delete_playback_file()
+{
+  char cmd[254];
+  int rc;
+
+  if (tps_file_exist("extract.mjpeg"))
   {
-    fprintf(stderr, "tps: %s\t%f\n", is->filename, get_master_clock(is));
+    sprintf(cmd, "rm extract.mjpeg");
+    fprintf(stderr, "tps: %s\n", cmd);
+    rc = system(cmd);
+    fprintf(stderr, "tps: %i\n", rc);
+  }
+}
+
+static void tps_set_mark(VideoState *is, int start_mark)
+{
+  if (start_mark)
+  {
+    fprintf(stderr, "tps: %s\t%f start mark\n", is->filename, get_master_clock(is));
     tps_struct.mark_start = get_master_clock(is);
-    tps_struct.state = 1;
   }
-  else if (tps_struct.state == 1)
+  else
   {
-    fprintf(stderr, "tps: %s\t%f\n", is->filename, get_master_clock(is));
+    fprintf(stderr, "tps: %s\t%f end mark\n", is->filename, get_master_clock(is));
     tps_struct.mark_end = get_master_clock(is);
-    tps_struct.state = 2;
   }
+  tps_delete_playback_file();
 }
 
 static void tps_make_playback_file(VideoState *is)
 {
   char cmd[254];
   int rc;
-  if (tps_struct.state == 2)
+
+  if (tps_struct.mark_start == 0)
   {
-    sprintf(cmd, "ffmpeg -y -ss %f -i %s -map 0:v -t %f -f mjpeg -c copy extract.mjpeg"
-    , tps_struct.mark_start
-    , is->filename
-    , tps_struct.mark_end - tps_struct.mark_start);
-    fprintf(stderr, "tps: %s\n", cmd);
-    rc = system(cmd);
-    fprintf(stderr, "tps: %i\n", rc);
+    fprintf(stderr, "tps: Start mark is not set\n");
+    return;
   }
+  if (tps_struct.mark_end == 0)
+  {
+    fprintf(stderr, "tps: End mark is not set\n");
+    return;
+  }
+  if (tps_struct.mark_start > tps_struct.mark_end)
+  {
+    fprintf(stderr, "tps: Start is after end mark\n");
+    return;
+  }
+
+  sprintf(cmd, "ffmpeg -y -ss %f -i %s -map 0:v -t %f -f mjpeg -c copy extract.mjpeg"
+  , tps_struct.mark_start
+  , is->filename
+  , tps_struct.mark_end - tps_struct.mark_start);
+  fprintf(stderr, "tps: %s\n", cmd);
+  rc = system(cmd);
+  fprintf(stderr, "tps: %i\tPlayback length: %f\n", rc, tps_struct.mark_end - tps_struct.mark_start);
+}
+
+static void tps_check_playback_file()
+{
+  char cmd[254];
+  int rc;
+
+  if (!tps_file_exist("extract.mjpeg"))
+  {
+    fprintf(stderr, "tps: extract.mjpeg does not exist\n");
+    return;
+  }
+
+  sprintf(cmd, "ffplay -autoexit -vf \"drawtext=fontsize=30:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf:text='Check playback %{pts\\:hms}':box=1:x=(w-tw)/2:y=h-(2*lh)\" -i extract.mjpeg");
+  fprintf(stderr, "tps: %s\n", cmd);
+  rc = system(cmd);
+  fprintf(stderr, "tps: %i\n", rc);
 }
 
 static void tps_use_playback_file()
 {
   char cmd[254];
   int rc;
-  if (tps_struct.state == 2)
+
+  if (!tps_file_exist("extract.mjpeg"))
   {
-    sprintf(cmd, "cp extract.mjpeg playback/playback.mjpeg");
-    fprintf(stderr, "tps: %s\n", cmd);
-    rc = system(cmd);
-    fprintf(stderr, "tps: %i\n", rc);
+    fprintf(stderr, "tps: extract.mjpeg does not exist\n");
+    return;
   }
+
+  sprintf(cmd, "cp extract.mjpeg playback/playback.mjpeg");
+  fprintf(stderr, "tps: %s\n", cmd);
+  rc = system(cmd);
+  fprintf(stderr, "tps: %i\n", rc);
 }
 /* tps global varialbles end */
 /* tps end */
@@ -3335,13 +3397,18 @@ static void event_loop(VideoState *cur_stream)
                 continue;
             switch (event.key.keysym.sym) {
             case SDLK_1:
+                tps_set_mark(cur_stream, 1);
+                break;
             case SDLK_2:
-                tps_set_mark(cur_stream);
+                tps_set_mark(cur_stream, 0);
                 break;
             case SDLK_3:
                 tps_make_playback_file(cur_stream);
                 break;
             case SDLK_4:
+                tps_check_playback_file();
+                break;
+            case SDLK_5:
                 tps_use_playback_file();
                 break;
             case SDLK_f:
