@@ -11,7 +11,7 @@ function help {
 	echo "Ie. \`es2_capture.sh -v 2 -s hd720 -r 24 -a 1\`"
 	echo "-v video input device number. Use es_devices.sh"
 	echo "-s video size. Use es_devices.sh"
-	echo "-r video rate. Use es_devices.sh"
+	echo "-r video input rate. Use es_devices.sh. Output rate is 25 fps"
 	echo "-a audio input card and optionally subdevice. Use es_devices.sh"
 	echo "-V verbose"
 	echo "-h help - this text"
@@ -27,7 +27,7 @@ function help {
 #
 
 PIX_FMT=yuvj420p
-VIDEOOUTPUTCODEC="-pix_fmt ${PIX_FMT} -c:v mjpeg -q:v 1 -r 25"
+VIDEOOUTPUTCODEC="-pix_fmt ${PIX_FMT} -c:v mjpeg -q:v 1"
 AUDIOOUTPUTCODEC="-c:a aac -b:a 128k -ar 44100 -strict -2"
 THREAD_QUEUE_SIZE="-thread_queue_size 64"
 STDFILTER="setpts=PTS-STARTPTS,fps=25"
@@ -106,7 +106,7 @@ fi
 
 if [ "$FPS" == "" ]
 then
-	echo "Specify video rate, option -r"
+	echo "Specify video input rate, option -r"
 	help
 fi
 
@@ -123,9 +123,9 @@ fi
 
 if [ "$PLAYBACK" == "Y" ]
 then
-	if [ ! -d ./playbackNo ]
+	if [ ! -d ./playbackFiller ]
 	then
-		mkdir ./playbackNo
+		mkdir ./playbackFiller
 	fi
 	# ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 1 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/1.mjpeg
 	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 25 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/25.mjpeg
@@ -136,7 +136,7 @@ fi
 #
 
 # Main camera, video input 0
-VIDEO_IN="-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${SIZE} -i /dev/video${VDEVICE}"
+VIDEO_IN="-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${SIZE} -r ${FPS} -i /dev/video${VDEVICE}"
 
 # Main audio
 AUDIO_IN="-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"

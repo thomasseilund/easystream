@@ -19,8 +19,8 @@
 #define STDOUT 1                /* file number for stdout */
 #define PLAY_BACK_FILE        "playback/playback.mjpeg"
 #define PLAY_BACK_FILE_TEMP   "playback/playback.mjpeg_temp"
-#define NO_PLAY_BACK_FILE_25  "playbackNo/25.mjpeg"
-#define NO_PLAY_BACK_FILE_1   "playbackNo/1.mjpeg"
+#define NO_PLAY_BACK_FILE_25  "playbackFiller/25.mjpeg"
+//#define NO_PLAY_BACK_FILE_1   "playbackNo/1.mjpeg"
 
 /* Global varialbles */
 int calls;
@@ -305,9 +305,9 @@ static void DoStuff(void)
 static void usage(void)
 {
   fprintf(stderr, "Write frames to stdout\n");
-  fprintf(stderr, "Write ./playbackNo/25.mjpeg repeatedly to stdout\n");
+  fprintf(stderr, "Write ./playbackFiller/25.mjpeg repeatedly to stdout\n");
   fprintf(stderr, "If ./playback/playback.mjpeg exists then write that file to stdout\n");
-  fprintf(stderr, "Write ./playbackNo/1.mjpeg repeatedly to stdout until one full second is reached\n");
+//  fprintf(stderr, "Write ./playbackNo/1.mjpeg repeatedly to stdout until one full second is reached\n");
   fprintf(stderr, "Go back and write ./playbackNo/25.mjpeg repeatedly to stdout\n");
   fprintf(stderr, "usage: es_write_frames [OPTIONS]\n");
   fprintf(stderr, "\n"

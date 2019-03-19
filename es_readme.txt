@@ -153,3 +153,9 @@ cp ~/ffmpeg_sources/ffmpeg/fftools/ffplay.c ~/github/easystream/
 USB over IP:
 http://www.linux-magazine.com/Issues/2018/208/Tutorial-USB-IP
 https://www.makeuseof.com/tag/usb-over-ethernet/
+
+Test - create two track output:
+ffmpeg -f v4l2 -thread_queue_size 64 -input_format mjpeg -s vga -r 24 -i /dev/video0 -f alsa -thread_queue_size 64 -i hw:1 -f v4l2 -thread_queue_size 64 -input_format mjpeg -s vga -r 25 -i /dev/video2 -filter_complex '[0:0]setpts=PTS-STARTPTS,fps=25[cam];[1:0]anull[audio];[cam]null[videores];[videores]split[video][videox];[2:0]setpts=PTS-STARTPTS,fps=25[cam2]' -map '[video]' -pix_fmt yuvj420p -c:v mjpeg -q:v 1 -map '[audio]' -c:a aac -b:a 128k -ar 44100 -strict -2 -map '[cam2]' -pix_fmt yuvj420p -c:v mjpeg -q:v 1 -y -f matroska twotracks.mkv -map '[videox]' -f xv -pix_fmt yuv420p display
+
+More info on muxer - a live option exists!!!
+ffmpeg -h muxer=matroska
