@@ -1,6 +1,6 @@
 mkdir newdir
 cd newdir
-PATH=$PATH:~/github/easystream
+PATH=$PATH:~/github/easystream:~/bin
 es_terminal_setup.sh -n 4
 
 
