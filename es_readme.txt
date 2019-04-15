@@ -1,6 +1,6 @@
 mkdir newdir
 cd newdir
-PATH=$PATH:~/github/easystream:~/bin
+PATH=$PATH:~/github/easystream
 es_terminal_setup.sh -n 4
 
 
@@ -159,3 +159,32 @@ ffmpeg -f v4l2 -thread_queue_size 64 -input_format mjpeg -s vga -r 24 -i /dev/vi
 
 More info on muxer - a live option exists!!!
 ffmpeg -h muxer=matroska
+
+USB over IP:
+https://developer.ridgerun.com/wiki/index.php?title=How_to_setup_and_use_USB/IP
+
+HDMI -> x264 over IP:
+2019 ZY-DT209 RJ45 HDMI Extender IP Over UTP/STP CAT5 CAT5e CAT6 Extensor HDMI With IR LAN Network 200m HDMI Extender Ethernet
+https://www.aliexpress.com/item/2019-ZY-DT209-RJ45-HDMI-Extender-IP-Over-UTP-STP-CAT5-CAT5e-CAT6-Extensor-HDMI-With/32844800482.html?spm=2114.search0204.3.8.3db64dfcTZsxtI&s=p&ws_ab_test=searchweb0_0,searchweb201602_5_10065_10068_319_10059_10884_317_10887_10696_321_322_10084_453_10083_454_10103_10618_10304_10307_10820_10821_537_10302_536_10902,searchweb201603_51,ppcSwitch_0&algo_expid=f7698204-8ef3-4b62-8ad8-4059e26775da-1&algo_pvid=f7698204-8ef3-4b62-8ad8-4059e26775da&transAbTest=ae803_4
+https://navceker.aliexpress.com/store/3372034
+https://navceker.aliexpress.com/store/seller-store-story/3372034.html
+
+reset alsa:
+sudo alsa force-reload
+
+reset uvc:
+sudo rmmod uvcvideo && sudo modprobe uvcvideo
+
+No space left on device:
+Not enough USB bandwidth on the controller
+
+Capture from UVC and for input in one terminal and play back in another:
+ffmpeg -y -f v4l2 -framerate 15 -input_format mjpeg -video_size hd720 -i /dev/video0 -filter_complex '[0:0]setpts=PTS-STARTPTS,fps=25[cam1]' -map '[cam1]' -pix_fmt yuvj420p -f mjpeg buildin.mjpeg
+tail -c 256 -f buildin.mjpeg | full_frame_mjpeg > playback/playback.mjpeg
+
+hex viewer:
+xxd test.mjpeg | select_streams
+
+Der er optaget fra 3 kameraer og gemt i fil. Sidste kam tager mindre billeder end de to første. Vis tre kameraoer ved siden af hinanden:
+ffmpeg -y -i stream/`ls stream | tail -n 1` -filter_complex "[0:v:0]scale=hd720[v0];[0:v:1]scale=hd720[v1];[0:v:2]scale=hd720[v2];[0:v:3]scale=hd720[v3];[0:v:4]scale=hd720[v4];[v0][v1][v2][v3][v4]hstack=5[video];[0:a]anull[audio]" -map [video] -map [audio] -pix_fmt yuvj420p -c:v mjpeg -q:v 1 -c:a aac -b:a 128k -ar 44100 -strict -2 test.mkv
+ffplay -i test.mkv

@@ -68,9 +68,11 @@ PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./conf
   --enable-libzmq \
   --disable-doc \
   --enable-nonfree && \
-PATH="$HOME/bin:$PATH" make && \
+# PATH="$HOME/bin:$PATH" make && \
 PATH="$HOME/bin:$PATH" make tools/zmqsend && \
+PATH="$HOME/bin:$PATH" make tools/ffescape && \
 cp tools/zmqsend $HOME/bin
+cp tools/ffescape $HOME/bin
 make install && \
 hash -r
 

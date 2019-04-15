@@ -43,12 +43,13 @@ then
 fi
 
 FOCUS=10
+ZOOM=100
 
 
 while true; do
 	echo -en "\033]2;ON - OFF - Overlay\007"
 
-  read -n 1 -p "0. Manuel focus. 1. Auto focus. 2, 3 Change focus : " CMD
+  read -n 1 -p "0. Manuel focus. 1. Auto focus. 2, 3 Change focus. Zoom 4, 5 : " CMD
    		echo
 
    if [ "$CMD" == "0" ]; then
@@ -67,5 +68,15 @@ while true; do
        echo "Change focus from $FOCUS to $NEWFOCUS"
        FOCUS=$NEWFOCUS
        v4l2-ctl -d 2 --set-ctrl=focus_absolute=$FOCUS
+   elif [ "$CMD" == "4" ]; then
+   		NEWZOOM=$(($ZOOM-1))
+       echo "Change zoom from $ZOOM to $NEWZOOM"
+       ZOOM=$NEWZOOM
+       v4l2-ctl -d 2 --set-ctrl=zoom_absolute=$ZOOM
+   elif [ "$CMD" == "5" ]; then
+   		NEWZOOM=$(($ZOOM+1))
+       echo "Change zoom from $ZOOM to $NEWZOOM"
+       ZOOM=$NEWZOOM
+       v4l2-ctl -d 2 --set-ctrl=zoom_absolute=$ZOOM
    fi
 done

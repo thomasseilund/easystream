@@ -1,5 +1,7 @@
 #bin/bash
 
+# set -x
+
 #
 # Help
 #
@@ -13,12 +15,19 @@ function help {
 	echo "-s video size. Use es_devices.sh"
 	echo "-r video input rate. Use es_devices.sh. Output rate is 25 fps"
 	echo "-a audio input card and optionally subdevice. Use es_devices.sh"
-	echo "-V verbose"
+	echo "-V verbose, bash script"
 	echo "-h help - this text"
 	echo "-R ffmpeg report. See report for overlay numbers"
 	echo "-D path where stream is saved as timestamped-file.mkv. Path must exist"
 	echo "-S overlay scoreboard"
 	echo "-P overlay playback"
+	echo "-o debug overlay"
+	echo "-1 v for extra live input number 1"
+	echo "-2 s for extra live input number 1"
+	echo "-3 r for extra live input number 1"
+	echo "-4 v for extra live input number 2"
+	echo "-5 s for extra live input number 2"
+	echo "-6 r for extra live input number 2"
 	exit 0
 }
 
@@ -31,16 +40,20 @@ VIDEOOUTPUTCODEC="-pix_fmt ${PIX_FMT} -c:v mjpeg -q:v 1"
 AUDIOOUTPUTCODEC="-c:a aac -b:a 128k -ar 44100 -strict -2"
 THREAD_QUEUE_SIZE="-thread_queue_size 64"
 STDFILTER="setpts=PTS-STARTPTS,fps=25"
+STDOVERLAY="overlay=9999:eval=frame:eof_action=endall"
 IP=`hostname  -I | cut -f1 -d' '`
 SCOREBOARD_PORT=5551
 PLAYBACK_PORT=5552
+EXTRACAM1_PORT=5553
+EXTRACAM2_PORT=5554
 SCOREBOARD_FONT_FILE_AND_SIZE="fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf:fontsize=30"
+ES_WRITE_FRAMES_QUIET="-q"
 
 #
 # Handle command line arguments. See http://wiki.bash-hackers.org/howto/getopts_tutorial
 #
 
-while getopts "v:s:r:a:n:VhRD:SP" opt; do
+while getopts "v:s:r:a:n:VhRD:SPo1:2:3:4:5:6:" opt; do
 case $opt in
 	v)
 	VDEVICE=$OPTARG
@@ -63,8 +76,29 @@ case $opt in
 	P)
 	PLAYBACK=Y
 	;;
+	o)
+	DEBUGOVERLAY=Y
+	;;
 	V)
 	set -x
+	;;
+	1)
+	V_EXTRACAM1=$OPTARG
+	;;
+	2)
+	S_EXTRACAM1=$OPTARG
+	;;
+	3)
+	R_EXTRACAM1=$OPTARG
+	;;
+	4)
+	V_EXTRACAM2=$OPTARG
+	;;
+	5)
+	S_EXTRACAM2=$OPTARG
+	;;
+	6)
+	R_EXTRACAM2=$OPTARG
 	;;
 	h)
 	help
@@ -116,7 +150,6 @@ then
 	help
 fi
 
-
 #
 # If playback then create filler image
 #
@@ -127,19 +160,18 @@ then
 	then
 		mkdir ./playbackFiller
 	fi
-	# ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 1 -pix_fmt $PIX_FMT -f mjpeg ./playbackNo/1.mjpeg
+	# ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 1  -pix_fmt $PIX_FMT -f mjpeg ./playbackFiller/1.mjpeg
 	ffmpeg -y -f lavfi -i color=c=green:size=$SIZE -frames:v 25 -pix_fmt $PIX_FMT -f mjpeg ./playbackFiller/25.mjpeg
 fi
 
 #
-#	Input
+#	Input. Cam 0, main cam, and scoreboard and playback
 #
 
-# Main camera, video input 0
-VIDEO_IN="-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${SIZE} -r ${FPS} -i /dev/video${VDEVICE}"
-
-# Main audio
-AUDIO_IN="-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"
+# Main camera, video input 0 and audio input
+AV_IN="\
+-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${SIZE} -r ${FPS} -i /dev/video${VDEVICE} \
+-f alsa ${THREAD_QUEUE_SIZE} -i hw:${ADEVICE}"
 
 OVERLAY_IN_PLAYBACK="-f mjpeg ${THREAD_QUEUE_SIZE} -i pipe:0"
 OVERLAY_IN_SCOREBOARD="-f mjpeg ${THREAD_QUEUE_SIZE} -i scoreboard100.mjpeg"
@@ -165,15 +197,23 @@ then
 	FILTERCOMPLEX_OVERLAYS="\
 ;[2:0]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
 ;[3:0]${STDFILTER}[playback]\
-;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores0]\
-;[videores0][playback]overlay=9999:eval=frame,zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores]"
+;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videoresscoreboard]\
+;[videoresscoreboard][playback]${STDOVERLAY},zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores0]"
+
+	# ffmppeg input stream number for extra cams:
+	I_EXTRACAM1=4
+	I_EXTRACAM2=5
 elif [ "$SCOREBOARD" == "Y" ]
 then
 	echo Scoreboard
 	OVERLAYS_IN=${OVERLAY_IN_SCOREBOARD}
 	FILTERCOMPLEX_OVERLAYS="\
 ;[2:0]${STDFILTER},${SCOREBOARD_FILTER_SHOW_NUMBERS}[scoreboard]\
-;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores]"
+;[cam][scoreboard]overlay=main_w-overlay_w-10:main_h-overlay_h-10[videores0]"
+
+	# ffmppeg input stream number for extra cams:
+	I_EXTRACAM1=3
+	I_EXTRACAM2=4
 elif [ "$PLAYBACK" == "Y" ]
 then
 	echo Playback
@@ -182,9 +222,76 @@ then
 	OVERLAYS_IN=${OVERLAY_IN_PLAYBACK}
 	FILTERCOMPLEX_OVERLAYS="\
 ;[2:0]${STDFILTER}[playback]\
-;[cam][playback]overlay=9999:eval=frame:eof_action=endall,zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores]"
+;[cam][playback]${STDOVERLAY},zmq=bind_address=tcp\\\://${IP}\\\:${PLAYBACK_PORT}[videores0]"
+
+	# ffmppeg input stream number for extra cams:
+	I_EXTRACAM1=3
+	I_EXTRACAM2=4
 else
-	FILTERCOMPLEX_OVERLAYS=";[cam]null[videores]"
+	FILTERCOMPLEX_OVERLAYS=";[cam]null[videores0]"
+
+	# ffmppeg input stream number for extra cams:
+	I_EXTRACAM1=2
+	I_EXTRACAM2=3
+fi
+
+#
+#	Input. Extra cam 1 and 2
+#
+
+#ZMQ="zmq=bind_address=tcp"\\\\\\://${IP}\\\\\\$:"
+#ZMQ="zmq"
+echo $ZMQ
+# exit
+
+if ! [ "$V_EXTRACAM1" == "" ] && ! [ "$V_EXTRACAM2" == "" ]
+then
+	echo Extra cam1 and extra cam2
+
+	AV_IN="${AV_IN} \
+-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${S_EXTRACAM1} -r ${R_EXTRACAM1} -i /dev/video${V_EXTRACAM1} \
+-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${S_EXTRACAM2} -r ${R_EXTRACAM2} -i /dev/video${V_EXTRACAM2}"
+
+	FILTERCOMPLEX_OVERLAYS_EXTRACAM="\
+;[${I_EXTRACAM1}:0]${STDFILTER},split[extracam1][extracam1copy]\
+;[${I_EXTRACAM2}:0]${STDFILTER},split[extracam2][extracam2copy]\
+;[videores0][extracam1]${STDOVERLAY},zmq=bind_address=tcp\\\://${IP}\\\:${EXTRACAM1_PORT}[videores1]\
+;[videores1][extracam2]${STDOVERLAY},zmq=bind_address=tcp\\\://${IP}\\\:${EXTRACAM2_PORT}[videores]"
+
+	EXTRACAM1COPY="-map [extracam1copy]"
+	EXTRACAM2COPY="-map [extracam2copy]"
+
+elif ! [ "$V_EXTRACAM1" == "" ]
+then
+	echo Extra cam1
+
+	AV_IN="${AV_IN} \
+-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${S_EXTRACAM1} -r ${R_EXTRACAM1} -i /dev/video${V_EXTRACAM1}"
+
+	FILTERCOMPLEX_OVERLAYS_EXTRACAM="\
+;[${I_EXTRACAM1}:0]${STDFILTER},split[extracam1][extracam1copy]\
+;[videores0][extracam1]${STDOVERLAY},zmq=bind_address=tcp\\\://${IP}\\\:${EXTRACAM1_PORT}[videores]"
+
+	EXTRACAM1COPY="-map [extracam1copy]"
+
+elif ! [ "$V_EXTRACAM2" == "" ]
+then
+	echo Extra cam2
+
+	AV_IN="${AV_IN} \
+-f v4l2 ${THREAD_QUEUE_SIZE} -input_format mjpeg -s ${S_EXTRACAM2} -r ${R_EXTRACAM2} -i /dev/video${V_EXTRACAM2}"
+
+	FILTERCOMPLEX_OVERLAYS_EXTRACAM="\
+;[${I_EXTRACAM2}:0]${STDFILTER},split[extracam2][extracam2copy]\
+;[videores0][extracam2]${STDOVERLA},zmq=bind_address=tcp\\\://${IP}\\\:${EXTRACAM2_PORT}[videores]"
+
+	EXTRACAM1COPY="-map [extracam2copy]"
+
+else
+	echo Only main cam
+
+	FILTERCOMPLEX_OVERLAYS_EXTRACAM=";[videores0]null[videores]"
+
 fi
 
 #
@@ -195,15 +302,29 @@ FILTERCOMPLEX="\
 [0:0]${STDFILTER}[cam]\
 ;[1:0]anull[audio]\
 ${FILTERCOMPLEX_OVERLAYS}\
+${FILTERCOMPLEX_OVERLAYS_EXTRACAM}\
 ;[videores]split[video][videox]"
 
 #
 # Output
 #
 
-VIDEO_OUT_OPTIONS="-map [video] ${VIDEOOUTPUTCODEC}"
+VIDEO_OUT_OPTIONS="-map [video] ${EXTRACAM1COPY} ${EXTRACAM2COPY} ${VIDEOOUTPUTCODEC}"
 AUDIO_OUT_OPTIONS="-map [audio] ${AUDIOOUTPUTCODEC}"
-VIDEO_OUT_DISPLAY="-map [videox] -f xv -pix_fmt yuv420p display"
+# Get name of input video and use as title for video on screen
+VIDEO_OUT_DISPLAY_HEADER=`v4l2-ctl -d ${VDEVICE} -D | grep "Card type" | awk -F ": " '{print $2}'`
+VIDEO_OUT_DISPLAY="-map [videox] -f xv -pix_fmt yuv420p ${VIDEO_OUT_DISPLAY_HEADER// /_}"
+
+#
+# Debug overlay
+#
+
+if [ "$DEBUGOVERLAY" == "Y" ] && [ "$PLAYBACK" == "Y" ]
+then
+	LOGLEVEL="-loglevel quiet"
+	ES_WRITE_FRAMES_QUIET=""
+fi
+
 
 #
 # Handle Ctrl-C.
@@ -232,11 +353,19 @@ while true; do
 
 	if [ "$PLAYBACK" == "Y" ]
 	then
-		es_write_frames -d 750 -o ${PLAYBACK_OVERLAYNUM} -b tcp://${IP}:${PLAYBACK_PORT} 2>/dev/null | \
+
+		echo ${OVERLAY_STDERR}
+		echo ${OVERLAY_STDERR}
+		echo ${OVERLAY_STDERR}
+		echo ${OVERLAY_STDERR}
+		echo ${OVERLAY_STDERR}
+
+		# es_write_frames -d 750 -o ${PLAYBACK_OVERLAYNUM} -b tcp://${IP}:${PLAYBACK_PORT} 2>/dev/null | \
+		es_write_frames -d 750 -o ${PLAYBACK_OVERLAYNUM} -b tcp://${IP}:${PLAYBACK_PORT} ${ES_WRITE_FRAMES_QUIET} | \
 		ffmpeg \
+		${LOGLEVEL} \
 		${REPORT} \
-		${VIDEO_IN} \
-		${AUDIO_IN} \
+		${AV_IN} \
 		${OVERLAYS_IN} \
 		-filter_complex ${FILTERCOMPLEX} \
 		${VIDEO_OUT_OPTIONS} \
@@ -246,8 +375,7 @@ while true; do
 	else
 		ffmpeg \
 		${REPORT} \
-		${VIDEO_IN} \
-		${AUDIO_IN} \
+		${AV_IN} \
 		${OVERLAYS_IN} \
 		-filter_complex ${FILTERCOMPLEX} \
 		${VIDEO_OUT_OPTIONS} \

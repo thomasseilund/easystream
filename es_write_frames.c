@@ -23,7 +23,7 @@
 //#define NO_PLAY_BACK_FILE_1   "playbackNo/1.mjpeg"
 
 /* Global varialbles */
-int calls;
+//int calls;
 const char *bind_address = "tcp://127.0.0.1:5555";
 unsigned long epoch; /* */
 unsigned long streamed_until;
@@ -33,11 +33,22 @@ int frames_total;
 ulong start_milliseconds_since_epoch;
 int overlay_delay_milliseconds;
 int logline;
+int flag_quiet;
 
 /* Get number of seconds since epoch */
 static unsigned long get_epoch()
 {
   return (unsigned long)time(NULL);
+}
+
+/* Get number of milliseconds since epoch */
+static ulong get_milliseconds_since_epoch()
+{
+  ulong res;
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (unsigned long long)(tv.tv_sec) * 1000 +
+      (unsigned long long)(tv.tv_usec) / 1000;
 }
 
 /* Write timestamp with milliseconds to buf and return buf */
@@ -55,29 +66,16 @@ static char* get_timestamp(char* buf)
   return buf;
 }
 
-/* Get number of milliseconds since epoch */
-static ulong get_milliseconds_since_epoch()
-{
-  ulong res;
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (unsigned long long)(tv.tv_sec) * 1000 +
-      (unsigned long long)(tv.tv_usec) / 1000;
-}
+// /* Peek at and return next character from open file pointer */
+// int fpeek(FILE *fp)
+// {
+//   int c;
+//   c = fgetc(fp);
+//   ungetc(c, fp);
+//   return c;
+// }
 
-/* Peek at and return next character from open file pointer */
-int fpeek(FILE *fp)
-{
-  int c;
-  c = fgetc(fp);
-  ungetc(c, fp);
-  return c;
-}
-
-/*
-Set x value for overlay. This activates or deactivates overlay
-depening on x value
-*/
+/* Activate/deactivate overlay by setting x value for overlay */
 static int overlay(int x)
 {
   int recv_buf_size, ret = 0;
@@ -169,52 +167,64 @@ If delay >= 0 then we handle playback otherwise handle filler.
 static int write_frames_from_open_file(FILE *fp, const char *filename, int delay)
 {
   int ch, ch_last, start_of_image, end_of_image, frames_expected, milliseconds_since_start;
-  //unsigned long epoch_now; /* */
+  unsigned long chars;
   char timestamp[100];
-  start_of_image = end_of_image = 0;
+  start_of_image = end_of_image = chars = 0;
   while ((ch = fgetc(fp)) != EOF)
   {
-    //fprintf(stderr, "SOI: %i\tEOI: %i\n", start_of_image, end_of_image);
-    if (ch_last == 255 && ch == 216)
-      start_of_image++;
-    if (ch_last == 255 && ch == 217)
-    {
-      end_of_image++;
-      frames_total++;
-
-      /* Take delay of over activation into accout? */
-      if (delay >= 0)
-      {
-        /* Yes. */
-        if (overlay_x != 0 && end_of_image * 40 > delay)
-          overlay(0);
-      }
-
-      milliseconds_since_start = get_milliseconds_since_epoch() - start_milliseconds_since_epoch;
-      frames_expected = (get_milliseconds_since_epoch() - start_milliseconds_since_epoch) / 40;
-
-      //epoch_now = get_epoch();
-      fprintf(stderr, "%s\t%s\tSOI: %i\tEOI: %i\tFPS: %f\tFrames written:%i\tFrames expected: %i\tms: %i\tLogline: %i\n"
-        ,get_timestamp(timestamp)
-        ,filename
-        ,start_of_image
-        ,end_of_image
-        ,(float) frames_total / milliseconds_since_start * 1000   /* FPS */
-        ,frames_total                                   /* Frames written */
-        ,milliseconds_since_start / 40                  /* Frames expected */
-        ,milliseconds_since_start
-        ,logline++);
-
-      /* Wait? */
-      if (frames_total > frames_expected)
-      {
-        usleep((frames_total - frames_expected) * 40 * 1000); /* milliseconds */
-        //fprintf(stderr, "usleep(): %i\ttotal: %i\texpected: %i\n", microseconds, frames_total, frames_expected);
-      }
-    }
     fprintf(stdout, "%c", ch);
+
+    // chars++;
+    // fprintf(stderr, "%i,", (int)ch);
+    // if ((chars % 40) == 0)
+    //   fprintf(stderr, "\n");
+
+    if (ch_last == 255)
+    {
+      if (ch == 216) /* SOI 0xFF D8 */
+        start_of_image++;
+      else if (ch == 217) /* EOI 0xFF D9 */
+      {
+        end_of_image++;
+        frames_total++;
+
+        /* Take delay of overlay activation into accout? */
+        if (delay >= 0)
+        {
+          /* Yes. */
+          if (overlay_x != 0 && end_of_image * 40 > delay)
+            overlay(0);
+        }
+
+        milliseconds_since_start = get_milliseconds_since_epoch() - start_milliseconds_since_epoch;
+        frames_expected = milliseconds_since_start / 40;
+
+        /* Debug statement */
+        if (!flag_quiet && (frames_total % 5) == 0)
+        {
+          // if ((chars % 40) != 0)
+          //   fprintf(stderr, "\n");
+          fprintf(stderr, "%s %s SOI: %4i EOI: %4i FPS: %.2f F written:%5i F expected: %5i ms: %6i Logline: %5i\n"
+            ,get_timestamp(timestamp)
+            ,filename
+            ,start_of_image
+            ,end_of_image
+            ,(float) frames_total / milliseconds_since_start * 1000   /* FPS */
+            ,frames_total                                   /* Frames written */
+            ,milliseconds_since_start / 40                  /* Frames expected */
+            ,milliseconds_since_start
+            ,logline++);
+        }
+
+        /* Wait? */
+        if (frames_total > frames_expected)
+        {
+          usleep((frames_total - frames_expected) * 40 * 1000); /* milliseconds */
+          //fprintf(stderr, "usleep(): %i\ttotal: %i\texpected: %i\n", 40000, frames_total, frames_expected);
+        }
+      } // end of image
+    } // if (ch_last == 255)
     ch_last = ch;
-    //fprintf(stderr, "%i\n", (int)ch);
   }
   if (overlay_x == 0)
     overlay(9999); /* stop show overlay,playback */
@@ -238,45 +248,57 @@ static int write_frames(const char *filename)
   return frames;
 }
 
+// static int get_frames(const char *filename)
+// {
+//   FILE *fp;
+//   char cmd[254];
+//   int frames = -1;
+//
+//   sprintf(cmd, "ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 %s", filename);
+//
+//   if ((fp = popen(cmd, "r")) == NULL)
+//   {
+//     fprintf(stderr, "Error running command %s: %s\n", cmd, strerror( errno ));
+//   }
+//   else
+//   {
+//     fscanf(fp, "%i", &frames);
+//     fclose(fp);
+//   }
+//   return frames;
+// }
 
-static int get_frames(const char *filename)
-{
-  FILE *fp;
-  char cmd[254];
-  int frames = -1;
-
-  sprintf(cmd, "ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 %s", filename);
-
-  if ((fp = popen(cmd, "r")) == NULL)
-  {
-    fprintf(stderr, "Error running command %s: %s\n", cmd, strerror( errno ));
-  }
-  else
-  {
-    fscanf(fp, "%i", &frames);
-    fclose(fp);
-  }
-  return frames;
-}
-
-/*
- * DoStuff
- */
+/* DoStuff */
 static void DoStuff(void)
 {
   /* Do we have playback? */
-  int frames;
-  int frames_single;
+  int frames, frames_single;
   FILE *fp;
+  char timestamp[100];
+  long l;
   if ((fp = fopen(PLAY_BACK_FILE, "r")) != NULL)
   {
     /* Yes, we do have playback */
     /* Rename playback file so new playback file can be placed in playback folder */
+    fprintf(stderr, "%s rename file 1\n", get_timestamp(timestamp));
     rename(PLAY_BACK_FILE, PLAY_BACK_FILE_TEMP);
     /* Playback */
     //overlay(0); /* if we have -re option on ffmpeg command then .. */
+    /* If we tail from a live stream to PLAY_BACK_FILE then we risk that the
+      file exists but is empty when we start reading from it. Give a little
+      time for the file to have content! */
+    l = 0;
+    while (l == 0)
+    {
+      fseek(fp, 0L, SEEK_END);
+      l = ftell(fp);
+      if (l == 0)
+        usleep(80 * 1000); /* milliseconds */
+    }
+    rewind(fp);
     frames = write_frames_from_open_file(fp, PLAY_BACK_FILE_TEMP, overlay_delay_milliseconds);
     fclose(fp);
+    fprintf(stderr, "%s rename file 2\n", get_timestamp(timestamp));
 
     // /* Handle sub second frame fillers */
     // frames_single = frames mod 25;
@@ -318,40 +340,44 @@ static void usage(void)
   //       "-F                background frame 1/25 sec\n"
          "-o                overlay number. See ffmpeg report output. If not specified then no overlay handling\n"
          "-d                overlay delay in milliseconds. Usefull if redering is delayed\n"
+         "-q                quiet\n"
          "-i INFILE         set INFILE as input file, stdin if omitted\n");
 }
 
 int main(int argc, char *argv[]) {
   /* Get command line options */
   int c;
-  while ((c = getopt(argc, argv, "hf:F:o:b:d:")) != -1) {
+  while ((c = getopt(argc, argv, "hf:F:o:b:d:q")) != -1) {
       switch (c) {
         case 'b':
           bind_address = optarg;
           break;
-      case 'h':
-          usage();
-          return 0;
-      // case 'f':overlay_number
-      //     in_filename_frame_1000_msec = optarg;
-      //     break;
-      // case 'F':
-      //     in_filename_frame_1000_msec = optarg;
-      //     break;
-      case 'o':
-          overlay_number = optarg;
-          // if ((overlay_number = strtol(optarg, NULL, 10)) != 0)
-          // {
-          //   fprintf(stderr, "Argument -o, '%s', is not a valid overlay numberttt\n", optarg);
-          //   usage();
-          //   return -1;
-          // }
+        case 'q':
+          flag_quiet = 1;
           break;
-      case 'd':
-          overlay_delay_milliseconds = atoi(optarg);
-          break;
-      case '?':
-          return 1;
+        case 'h':
+            usage();
+            return 0;
+        // case 'f':overlay_number
+        //     in_filename_frame_1000_msec = optarg;
+        //     break;
+        // case 'F':
+        //     in_filename_frame_1000_msec = optarg;
+        //     break;
+        case 'o':
+            overlay_number = optarg;
+            // if ((overlay_number = strtol(optarg, NULL, 10)) != 0)
+            // {
+            //   fprintf(stderr, "Argument -o, '%s', is not a valid overlay numberttt\n", optarg);
+            //   usage();
+            //   return -1;
+            // }
+            break;
+        case 'd':
+            overlay_delay_milliseconds = atoi(optarg);
+            break;
+        case '?':
+            return 1;
       }
   }
 
@@ -377,12 +403,6 @@ int main(int argc, char *argv[]) {
   overlay_x = 9999; /* don't show overlay/playback */
   start_milliseconds_since_epoch = get_milliseconds_since_epoch();
 
-  /*
-    Call pause repeatedly. For each call we wait for timer to elapse-
-    When timer epases we call DoStuff()
-    */
-  //DoStuff();
   while (1)
-    //pause();
     DoStuff();
 }
