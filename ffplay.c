@@ -3289,9 +3289,9 @@ static void tps_delete_playback_file()
   if (tps_file_exist("extract.mjpeg"))
   {
     sprintf(cmd, "rm extract.mjpeg");
-    fprintf(stderr, "tps: %s\n", cmd);
+    fprintf(stderr, "\ntps: %s\n", cmd);
     rc = system(cmd);
-    fprintf(stderr, "tps: %i\n", rc);
+    fprintf(stderr, "\ntps: %i\n", rc);
   }
 }
 
@@ -3299,12 +3299,12 @@ static void tps_set_mark(VideoState *is, int start_mark)
 {
   if (start_mark)
   {
-    fprintf(stderr, "tps: %s\t%f start mark\n", is->filename, get_master_clock(is));
+    fprintf(stderr, "\ntps: %s\t%f start mark\n", is->filename, get_master_clock(is));
     tps_struct.mark_start = get_master_clock(is);
   }
   else
   {
-    fprintf(stderr, "tps: %s\t%f end mark\n", is->filename, get_master_clock(is));
+    fprintf(stderr, "\ntps: %s\t%f end mark\n", is->filename, get_master_clock(is));
     tps_struct.mark_end = get_master_clock(is);
   }
   tps_delete_playback_file();
@@ -3317,27 +3317,32 @@ static void tps_make_playback_file(VideoState *is)
 
   if (tps_struct.mark_start == 0)
   {
-    fprintf(stderr, "tps: Start mark is not set\n");
+    fprintf(stderr, "\ntps: Start mark is not set\n");
     return;
   }
   if (tps_struct.mark_end == 0)
   {
-    fprintf(stderr, "tps: End mark is not set\n");
+    fprintf(stderr, "\ntps: End mark is not set\n");
     return;
   }
   if (tps_struct.mark_start > tps_struct.mark_end)
   {
-    fprintf(stderr, "tps: Start is after end mark\n");
+    fprintf(stderr, "\ntps: Start is after end mark\n");
     return;
   }
 
-  sprintf(cmd, "ffmpeg -y -ss %f -i %s -map 0:v -t %f -f mjpeg -c copy extract.mjpeg"
+  // Without or with "Playback" text on playback video
+  // sprintf(cmd, "ffmpeg -y -ss %f -i %s -t %f -f mjpeg -c copy extract.mjpeg"
+  // , tps_struct.mark_start
+  // , is->filename
+  // , tps_struct.mark_end - tps_struct.mark_start);
+  sprintf(cmd, "ffmpeg -y -ss %f -i %s -filter_complex drawtext=fontsize=30:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf:text='Playback':box=1 -map 0:v:0 -t %f -c:v mjpeg -q:v 1 extract.mjpeg"
   , tps_struct.mark_start
   , is->filename
   , tps_struct.mark_end - tps_struct.mark_start);
-  fprintf(stderr, "tps: %s\n", cmd);
+  fprintf(stderr, "\ntps: %s\n", cmd);
   rc = system(cmd);
-  fprintf(stderr, "tps: %i\tPlayback length: %f\n", rc, tps_struct.mark_end - tps_struct.mark_start);
+  fprintf(stderr, "\ntps: %i\tPlayback length: %f\n", rc, tps_struct.mark_end - tps_struct.mark_start);
 }
 
 static void tps_check_playback_file()
@@ -3347,14 +3352,14 @@ static void tps_check_playback_file()
 
   if (!tps_file_exist("extract.mjpeg"))
   {
-    fprintf(stderr, "tps: extract.mjpeg does not exist\n");
+    fprintf(stderr, "\ntps: extract.mjpeg does not exist\n");
     return;
   }
 
   sprintf(cmd, "ffplay -autoexit -vf \"drawtext=fontsize=30:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf:text='Check playback %{pts\\:hms}':box=1:x=(w-tw)/2:y=h-(2*lh)\" -i extract.mjpeg");
-  fprintf(stderr, "tps: %s\n", cmd);
+  fprintf(stderr, "\ntps: %s\n", cmd);
   rc = system(cmd);
-  fprintf(stderr, "tps: %i\n", rc);
+  fprintf(stderr, "\ntps: %i\n", rc);
 }
 
 static void tps_use_playback_file()
@@ -3364,14 +3369,14 @@ static void tps_use_playback_file()
 
   if (!tps_file_exist("extract.mjpeg"))
   {
-    fprintf(stderr, "tps: extract.mjpeg does not exist\n");
+    fprintf(stderr, "\ntps: extract.mjpeg does not exist\n");
     return;
   }
 
   sprintf(cmd, "cp extract.mjpeg playback/playback.mjpeg");
-  fprintf(stderr, "tps: %s\n", cmd);
+  fprintf(stderr, "\ntps: %s\n", cmd);
   rc = system(cmd);
-  fprintf(stderr, "tps: %i\n", rc);
+  fprintf(stderr, "\ntps: %i\n", rc);
 }
 /* tps global varialbles end */
 /* tps end */

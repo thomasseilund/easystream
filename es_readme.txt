@@ -186,5 +186,56 @@ hex viewer:
 xxd test.mjpeg | select_streams
 
 Der er optaget fra 3 kameraer og gemt i fil. Sidste kam tager mindre billeder end de to første. Vis tre kameraoer ved siden af hinanden:
-ffmpeg -y -i stream/`ls stream | tail -n 1` -filter_complex "[0:v:0]scale=hd720[v0];[0:v:1]scale=hd720[v1];[0:v:2]scale=hd720[v2];[0:v:3]scale=hd720[v3];[0:v:4]scale=hd720[v4];[v0][v1][v2][v3][v4]hstack=5[video];[0:a]anull[audio]" -map [video] -map [audio] -pix_fmt yuvj420p -c:v mjpeg -q:v 1 -c:a aac -b:a 128k -ar 44100 -strict -2 test.mkv
+ffmpeg -y -i stream/`ls stream | tail -n 1` \
+-filter_complex "[0:v:0]scale=hd720[v0];[0:v:1]scale=hd720[v1];[0:v:2]scale=hd720[v2];[0:v:3]scale=hd720[v3];[0:v:4]scale=hd720[v4];[v0][v1][v2][v3][v4]hstack=5[video];[0:a]anull[audio]" \
+-map [video] -map [audio] -pix_fmt yuvj420p -c:v mjpeg -q:v 1 -c:a aac -b:a 128k -ar 44100 -strict -2 test.mkv
 ffplay -i test.mkv
+
+Linux UVC homepage:
+http://www.ideasonboard.org/uvc/
+
+Lower FPS when little light:
+FPS depends on exposure. The longer exposure is the slower the FPS is.
+
+See all options for UVC camera:
+v4l2-ctl -d 2 --help-all | less
+
+fps afhænger af lys. Logitech c920 er op /dev/video2. Kør:
+ffmpeg -y -f v4l2 -input_format mjpeg -r 30 -i /dev/video2 -f alsa -thread_queue_size 1024 -i hw:2 -c copy test.mkv
+Noter, at fps rappoteret af ffmpeg afhænger af lys i lokalet. Med lidt lys rapporteres 15 fps. Med mere lys, så bevæger fps sig mod 30 (som er den ønskede fps)
+Med meget lys, så er fps 30 fra starten!
+Bemærk, at fps er fps skrevet til output fil. Ikke fps taget fra input fil!
+Er det mon sådan at exposure tilpasses lyset så med lidt lys øges exposure og fps går ned og omvendt?
+Sådan opfører det interne kamera på T420 sig ikke. Der er altid 30 fps uanset lysstyrke.
+Kør:
+v4l2-ctl -d 2 -L
+Se værdi for exposure_auto. Den vil nok være 3 for auto!
+Kør:
+v4l2-ctl -d 2 --set-ctrl=exposure_auto=1
+Nu er værdi sat til manuel!
+Kør:
+v4l2-ctl -d 2 -L
+Se værdi for exposure_auto. Den vil være 1 for manuel
+Kør :
+ffmpeg -y -f v4l2 -input_format mjpeg -r 30 -i /dev/video2 -f alsa -thread_queue_size 1024 -i hw:2 -c copy test.mkv
+Nu er fps lig 30 fra starten uanset lysstyrke!
+
+Synkroniser lyd. Optag og brug klaptræ. Noter synkronisering fejl. Fx er lyd 1 sekund bagefter. Kør:
+ffplay -i stream/`ls stream | tail -n 1`
+Ret synkroniseringsfejl. Kør:
+ffmpeg -y -i stream/`ls stream | tail -n 1` -itsoffset -1 -i stream/`ls stream | tail -n 1` -filter_complex "[0:v:0]null[video];[1:a]anull[audio]" -map [video] -map [audio] -pix_fmt yuvj420p -c:v mjpeg -q:v 1 -c:a aac -b:a 128k -ar 44100 -strict -2 test.mkv
+Test synkronisering:
+ffplay -i test.mkv
+Tilret synkronisering hvis nødvendigt. Brug fx 0.9 s, som i -itsoffset -0.9
+
+
+ffmpeg -y -i stream/`ls stream | tail -n 1` -itsoffset -0 -i stream/`ls stream | tail -n 1` -filter_complex "[0:v:0]null[video];[1:a]anull[audio]" -map [video] -map [audi -pix_fmt yuvj420p -c:v mjpeg -q:v 1 -c:a aac -b:a 128k -ar 44100 -strict -2 test.mkv
+
+Søg binært:
+xxd -p playbackFiller/25.mjpeg | tr -d '\n' | grep -o 'ffd9' | less -N
+
+Hent tilpasset verison af ffplay til github lokal folder:
+cp ~/ffmpeg_sources/ffmpeg/fftools/ffplay.c ~/github/easystream
+
+Web Cam Applet Control:
+qv4l2

@@ -20,13 +20,14 @@
 #define PLAY_BACK_FILE        "playback/playback.mjpeg"
 #define PLAY_BACK_FILE_TEMP   "playback/playback.mjpeg_temp"
 #define NO_PLAY_BACK_FILE_25  "playbackFiller/25.mjpeg"
+#define NO_PLAY_BACK_FILE_1   "playbackFiller/1.mjpeg"
 //#define NO_PLAY_BACK_FILE_1   "playbackNo/1.mjpeg"
 
 /* Global varialbles */
 //int calls;
 const char *bind_address = "tcp://127.0.0.1:5555";
 unsigned long epoch; /* */
-unsigned long streamed_until;
+//unsigned long streamed_until;
 const char *overlay_number;
 int overlay_x; /* current value for overlay. If overlay_x = 0 then we playback */
 int frames_total;
@@ -34,6 +35,7 @@ ulong start_milliseconds_since_epoch;
 int overlay_delay_milliseconds;
 int logline;
 int flag_quiet;
+char *single_filler_frame;
 
 /* Get number of seconds since epoch */
 static unsigned long get_epoch()
@@ -94,14 +96,16 @@ static int overlay(int x)
     return 1;
   }
 
-  fprintf(stderr, "Create ZMQ context\n");
+  if (!flag_quiet)
+    fprintf(stderr, "Create ZMQ context\n");
   zmq_ctx = zmq_ctx_new();
   if (!zmq_ctx) {
       fprintf(stderr, "Could not create ZMQ context: %s\n", zmq_strerror(errno));
       return 1;
   }
 
-  fprintf(stderr, "Create ZMQ socket\n");
+  if (!flag_quiet)
+    fprintf(stderr, "Create ZMQ socket\n");
   socket = zmq_socket(zmq_ctx, ZMQ_REQ);
   if (!socket) {
       fprintf(stderr, "Could not create ZMQ socket: %s\n", zmq_strerror(errno));
@@ -117,7 +121,8 @@ static int overlay(int x)
   /* Build overlay commando */
   sprintf(src_buf, "Parsed_overlay_%s x %i", overlay_number, overlay_x);
 
-  fprintf(stderr, "Send to socket\n");
+  if (!flag_quiet)
+    fprintf(stderr, "Send to socket\n");
   if (zmq_send(socket, src_buf, strlen(src_buf), 0) == -1) {
       fprintf(stderr, "Could not send message: %s\n", zmq_strerror(errno));
       return 1;
@@ -154,7 +159,8 @@ static int overlay(int x)
   zmq_ctx_destroy(zmq_ctx);
 
   // fprintf(stderr, "%s\t%s\n", src_buf, recv_buf);
-  fprintf(stderr, "%s\n", src_buf);
+  if (!flag_quiet)
+    fprintf(stderr, "%s\n", src_buf);
 
   return 0;
 }
@@ -188,13 +194,13 @@ static int write_frames_from_open_file(FILE *fp, const char *filename, int delay
         end_of_image++;
         frames_total++;
 
-        /* Take delay of overlay activation into accout? */
-        if (delay >= 0)
-        {
-          /* Yes. */
-          if (overlay_x != 0 && end_of_image * 40 > delay)
-            overlay(0);
-        }
+        // /* Take delay of overlay activation into accout? */
+        // if (delay >= 0)
+        // {
+        //   /* Yes. */
+        //   if (overlay_x != 0 && end_of_image * 40 > delay)
+        //     overlay(0);
+        // }
 
         milliseconds_since_start = get_milliseconds_since_epoch() - start_milliseconds_since_epoch;
         frames_expected = milliseconds_since_start / 40;
@@ -225,9 +231,14 @@ static int write_frames_from_open_file(FILE *fp, const char *filename, int delay
       } // end of image
     } // if (ch_last == 255)
     ch_last = ch;
-  }
+  } // while ((ch = fgetc(fp)) != EOF)
   if (overlay_x == 0)
+  {
+    /* Take delay of overlay deactivation into accout? */
+    if (delay >= 0)
+      usleep(delay * 1000);
     overlay(9999); /* stop show overlay,playback */
+  }
   return start_of_image;
 }
 
@@ -280,25 +291,28 @@ static void DoStuff(void)
   {
     /* Yes, we do have playback */
     /* Rename playback file so new playback file can be placed in playback folder */
-    fprintf(stderr, "%s rename file 1\n", get_timestamp(timestamp));
+    if (!flag_quiet)
+      fprintf(stderr, "%s rename file 1\n", get_timestamp(timestamp));
     rename(PLAY_BACK_FILE, PLAY_BACK_FILE_TEMP);
     /* Playback */
     //overlay(0); /* if we have -re option on ffmpeg command then .. */
-    /* If we tail from a live stream to PLAY_BACK_FILE then we risk that the
-      file exists but is empty when we start reading from it. Give a little
-      time for the file to have content! */
-    l = 0;
-    while (l == 0)
-    {
-      fseek(fp, 0L, SEEK_END);
-      l = ftell(fp);
-      if (l == 0)
-        usleep(80 * 1000); /* milliseconds */
-    }
-    rewind(fp);
+    // /* If we tail from a live stream to PLAY_BACK_FILE then we risk that the
+    //   file exists but is empty when we start reading from it. Give a little
+    //   time for the file to have content! */
+    // l = 0;
+    // while (l == 0)
+    // {
+    //   fseek(fp, 0L, SEEK_END);
+    //   l = ftell(fp);
+    //   if (l == 0)
+    //     usleep(80 * 1000); /* milliseconds */
+    // }
+    // rewind(fp);
+    overlay(0);
     frames = write_frames_from_open_file(fp, PLAY_BACK_FILE_TEMP, overlay_delay_milliseconds);
     fclose(fp);
-    fprintf(stderr, "%s rename file 2\n", get_timestamp(timestamp));
+    if (!flag_quiet)
+      fprintf(stderr, "%s rename file 2\n", get_timestamp(timestamp));
 
     // /* Handle sub second frame fillers */
     // frames_single = frames mod 25;
@@ -318,10 +332,22 @@ static void DoStuff(void)
   else
   {
     /* No, we have no playback. Use filler image */
-    frames = write_frames(NO_PLAY_BACK_FILE_25);
-    streamed_until++;
+    //frames = write_frames(NO_PLAY_BACK_FILE_25);
+    frames = write_frames(NO_PLAY_BACK_FILE_1);
+    //streamed_until++;
   }
 }
+
+// static void readin_single_frame()
+// {
+//   FILE *f = fopen(NO_PLAY_BACK_FILE_1, "rb");
+//   fseek(f, 0, SEEK_END);
+//   long fsize = ftell(f);
+//   fseek(f, 0, SEEK_SET);  /* same as rewind(f); */
+//   single_filler_frame = malloc(fsize + 1);
+//   fread(single_filler_frame, 1, fsize, f);
+//   fclose(f);
+// }
 
 
 static void usage(void)
@@ -339,7 +365,7 @@ static void usage(void)
   //       "-f                background frame, 1 sec\n"
   //       "-F                background frame 1/25 sec\n"
          "-o                overlay number. See ffmpeg report output. If not specified then no overlay handling\n"
-         "-d                overlay delay in milliseconds. Usefull if redering is delayed\n"
+         "-d                if playback shows n red frames before playback then compensate by option -d n\n"
          "-q                quiet\n"
          "-i INFILE         set INFILE as input file, stdin if omitted\n");
 }
@@ -399,7 +425,17 @@ int main(int argc, char *argv[]) {
   //   exit(1);
   // }
 
-  epoch = streamed_until = get_epoch();
+  /*
+  Don't risk that this playback frame pump pipes frames to ffmpeg
+  before ffmpeg picks up frames from cameras on physical devices
+  */
+  if (!flag_quiet)
+    fprintf(stderr, "Sleep 2 secs to allow ffmpeg to capture from devices\n");
+  usleep(overlay_delay_milliseconds * 40 * 1000);
+
+
+  // epoch = streamed_until = get_epoch();
+  epoch = get_epoch();
   overlay_x = 9999; /* don't show overlay/playback */
   start_milliseconds_since_epoch = get_milliseconds_since_epoch();
 
