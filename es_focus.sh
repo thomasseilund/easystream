@@ -62,21 +62,21 @@ while true; do
    		NEWFOCUS=$(($FOCUS-1))
        echo "Change focus from $FOCUS to $NEWFOCUS"
        FOCUS=$NEWFOCUS
-       v4l2-ctl -d 2 --set-ctrl=focus_absolute=$FOCUS
+       v4l2-ctl -d $VDEVICE --set-ctrl=focus_absolute=$FOCUS
    elif [ "$CMD" == "3" ]; then
    		NEWFOCUS=$(($FOCUS+1))
        echo "Change focus from $FOCUS to $NEWFOCUS"
        FOCUS=$NEWFOCUS
-       v4l2-ctl -d 2 --set-ctrl=focus_absolute=$FOCUS
+       v4l2-ctl -d $VDEVICE --set-ctrl=focus_absolute=$FOCUS
    elif [ "$CMD" == "4" ]; then
    		NEWZOOM=$(($ZOOM-1))
        echo "Change zoom from $ZOOM to $NEWZOOM"
        ZOOM=$NEWZOOM
-       v4l2-ctl -d 2 --set-ctrl=zoom_absolute=$ZOOM
+       v4l2-ctl -d $VDEVICE --set-ctrl=zoom_absolute=$ZOOM
    elif [ "$CMD" == "5" ]; then
    		NEWZOOM=$(($ZOOM+1))
        echo "Change zoom from $ZOOM to $NEWZOOM"
        ZOOM=$NEWZOOM
-       v4l2-ctl -d 2 --set-ctrl=zoom_absolute=$ZOOM
+       v4l2-ctl -d $VDEVICE --set-ctrl=zoom_absolute=$ZOOM
    fi
 done

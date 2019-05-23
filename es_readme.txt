@@ -239,3 +239,64 @@ cp ~/ffmpeg_sources/ffmpeg/fftools/ffplay.c ~/github/easystream
 
 Web Cam Applet Control:
 qv4l2
+
+Playback Selection:
+ffplay -i stream/`ls stream | tail -n 1` -window_title "Playback Selection"
+
+HDMI Extender:
+https://blog.danman.eu/new-version-of-lenkeng-hdmi-over-ip-extender-lkv373a/
+https://www.eevblog.com/forum/reviews/lkv373a-hdmi-streamer-my-findings/
+
+
+YN Stealth Scan Timing: About 99.14% done; ETC: 22:39 (0:00:50 remaining)
+doAnyOutstandingRetransmits took 36ms
+Completed SYN Stealth Scan at 22:45, 6216.27s elapsed (65535 total ports)
+Overall sending rates: 13.60 packets / s, 598.53 bytes / s.
+Nmap scan report for 192.168.2.101
+Host is up, received arp-response (0.00049s latency).
+Scanned at 2019-04-28 21:01:59 CEST for 6229s
+Not shown: 65531 closed ports
+Reason: 65531 resets
+PORT     STATE SERVICE         REASON
+80/tcp   open  http            syn-ack ttl 255
+7000/tcp open  afs3-fileserver syn-ack ttl 255
+7002/tcp open  afs3-prserver   syn-ack ttl 255
+9001/tcp open  tor-orport      syn-ack ttl 255
+MAC Address: 00:8D:50:2B:EC:55 (Unknown)
+Final times for host: srtt: 495 rttvar: 85  to: 100000
+
+Read from /usr/bin/../share/nmap: nmap-mac-prefixes nmap-payloads nmap-services.
+Nmap done: 1 IP address (1 host up) scanned in 6229.68 seconds
+           Raw packets sent: 84561 (3.721MB) | Rcvd: 84375 (3.375MB)
+tps@t420:~$
+
+TX Server
+Version : 4.0.0.0.20161116
+Encoder Version : 7.1.2.0.11.20161116
+
+Send to one host - not broadcast. Execute in browser. Wireshark confirms new behaviour. Redo after reboot
+http://192.168.2.101/dev/info.cgi?action=streaminfo&udp=y&rtp=n&multicast=n&unicast=y&mcastaddr=192.168.2.100&port=5004
+
+After command above, no broadcast, below command does not play video
+ffplay -i udp://@239.255.42.42:5004
+
+But this command does!
+ffplay -i udp://@192.168.2.100:5004
+
+Motion indicator. There is 256kB on file so it is use less:
+ffmpeg -y -loglevel debug -report -f v4l2 -input_format mjpeg -s hd480 -r 30 -i /dev/video2 -filter_complex "[0:0]select='gte(scene,0)',metadata=print:file='motion.txt',null[X]" -map '[X]' -pix_fmt yuv420p -f xv Title 2>/dev/null
+
+Motion indicator. Use this and get scene, motion indicator, from log file
+tail -f `ls ffmpeg-20* | tail -n 1` | es_get_scene_value > test.txt
+gnuplot -e "set terminal dumb size `tput cols`, `tput lines`;  plot 'test.txt'"
+gnuplot -e "set terminal dumb size `tput cols`, `tput lines`;  set multiplot layout 2,1; plot 'testA.txt'; plot 'testB.txt'; unset multiplot"
+
+ORC: (whilelist does not work)
+ffmpeg -y -loglevel debug -report -f v4l2 -input_format mjpeg -s hd480 -r 30 -i /dev/video2 -filter_complex "[0:0]fps=1,ocr=whitelist='0123456789',metadata=print:key=lavfi.ocr.text,null[X]" -map '[X]' -pix_fmt yuv420p -f xv Title
+Or this to log to same file in each program run:
+FFREPORT=file=ffreport.log:level=32 ffmpeg -y -loglevel debug -f v4l2 -input_format mjpeg -s hd480 -r 30 -i /dev/video2 -filter_complex "[0:0]fps=1,ocr=language=eng:whitelist=0123456789,metadata=print:key=lavfi.ocr.text,null[X]" -map '[X]' -pix_fmt yuv420p -f xv Title
+
+Tesseract doc:
+https://github.com/tesseract-ocr/tesseract/wiki
+https://mlichtenberg.wordpress.com/2015/11/04/tuning-tesseract-ocr/
+https://groups.google.com/forum/#!forum/tesseract-ocr

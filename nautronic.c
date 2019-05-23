@@ -18,6 +18,8 @@ Date	By	Remarks
 	ffmpeg filter drawtext.
 */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <errno.h> 	// strerror(errno)
 #include <stdlib.h> 	// exit(EXIT_FAILURE);
@@ -26,9 +28,11 @@ Date	By	Remarks
 #include <time.h> 	// localtime()
 #include <sys/ipc.h>	// ipcget()
 #include <sys/shm.h>	// ipcget()
+#include <sys/time.h>	// ipcget()
 #include <assert.h>
 #include <termios.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #define TENTHOFASECOND 0.1
 #define BAUDRATE B57600
@@ -116,7 +120,7 @@ void convertScoreboardBytesToInt()
 	shotclock = ((sc[0] & 0x0f) % 0x0f) * 10 + (sc[1] & 0x0f) % 0x0f;
 }
 
-main(int argc, char * argv[])
+int main(int argc, char * argv[])
 {
 	// Print help
 	printf("Call: %s inputfile outputfile\n", argv[0]);

@@ -1,0 +1,72 @@
+
+# Created by https://www.gitignore.io/api/perl,linux,visualstudiocode
+# Edit at https://www.gitignore.io/?templates=perl,linux,visualstudiocode
+
+### Linux ###
+*~
+
+# temporary files which can be created if a process still has a handle open of a deleted file
+.fuse_hidden*
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+# .nfs files are created when an open file is removed but is still being accessed
+.nfs*
+
+### Perl ###
+!Build/
+.last_cover_stats
+/META.yml
+/META.json
+/MYMETA.*
+*.o
+*.pm.tdy
+*.bs
+
+# Devel::Cover
+cover_db/
+
+# Devel::NYTProf
+nytprof.out
+
+# Dizt::Zilla
+/.build/
+
+# Module::Build
+_build/
+Build
+Build.bat
+
+# Module::Install
+inc/
+
+# ExtUtils::MakeMaker
+/blib/
+/_eumm/
+/*.gz
+/Makefile
+/Makefile.old
+/MANIFEST.bak
+/pm_to_blib
+/*.zip
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+
+# End of https://www.gitignore.io/api/perl,linux,visualstudiocode
+
+# added by tps
+es_get_scene_value
+nautronic

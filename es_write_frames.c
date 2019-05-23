@@ -1,7 +1,3 @@
-  /*
- * setitimer.c - simple use of the interval timer
- */
-
 #include <sys/time.h>           /* for setitimer */
 #include <unistd.h>             /* for pause */
 #include <signal.h>             /* for signal */
